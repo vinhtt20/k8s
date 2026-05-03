@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Bài giảng: 5 loại Service — từ ẩn dụ đến kỹ thuật</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* ===== HEADER ===== */
+  .header {
+    background: linear-gradient(135deg, #1158c7 0%, #6e40c9 100%);
+    padding: 50px 40px 60px;
+    text-align: center;
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 30px 30px;
+    pointer-events: none;
+  }
+  .header h1 {
+    margin: 0 0 10px 0;
+    font-size: 38px;
+    font-weight: 700;
+  }
+  .header .tagline {
+    font-size: 17px;
+    opacity: 0.9;
+    max-width: 750px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+
+  /* ===== ANALOGY HERO ===== */
+  .analogy-hero {
+    max-width: 1200px;
+    margin: -30px auto 0;
+    padding: 30px;
+    background: #161b22;
+    border-radius: 20px;
+    border: 1px solid #30363d;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    position: relative;
+    z-index: 2;
+  }
+  .analogy-hero h2 {
+    margin: 0 0 18px 0;
+    color: #58a6ff;
+    font-size: 22px;
+    text-align: center;
+  }
+  .building {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: center;
+  }
+  .building-img {
+    text-align: center;
+    font-size: 110px;
+    line-height: 1;
+  }
+  .building-img .floor {
+    display: block;
+    margin: 0;
+  }
+  .building-text {
+    line-height: 1.7;
+    color: #e6edf3;
+  }
+  .building-text b { color: #ffd33d; }
+  .building-text .map {
+    margin-top: 14px;
+    background: #0d1117;
+    border-left: 3px solid #58a6ff;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  /* ===== TABS ===== */
+  .tabs-wrap {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 0 20px;
+  }
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .tab {
+    background: #161b22;
+    border: 2px solid #30363d;
+    border-radius: 12px;
+    padding: 18px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    color: #e6edf3;
+    user-select: none;
+  }
+  .tab:hover {
+    border-color: #58a6ff;
+    transform: translateY(-3px);
+  }
+  .tab.active {
+    background: linear-gradient(145deg, #1f6feb, #1158c7);
+    border-color: #58a6ff;
+    color: white;
+    box-shadow: 0 8px 24px rgba(31,111,235,0.4);
+  }
+  .tab .icon {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .tab .name {
+    font-weight: bold;
+    font-size: 15px;
+  }
+  .tab .sub {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 3px;
+  }
+
+  /* ===== PANEL ===== */
+  .panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    padding: 30px;
+    display: none;
+  }
+  .panel.active {
+    display: block;
+    animation: fadeIn 0.4s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 24px;
+  }
+
+  /* ===== ANALOGY CARD ===== */
+  .analogy-card {
+    background: linear-gradient(145deg, #1c2128, #0d1117);
+    border: 1px solid #30363d;
+    border-radius: 14px;
+    padding: 24px;
+    position: relative;
+  }
+  .analogy-card::before {
+    content: "💭 ẨN DỤ";
+    position: absolute;
+    top: -10px;
+    left: 18px;
+    background: #ffd33d;
+    color: #1a1a1a;
+    padding: 3px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .analogy-card h3 {
+    margin: 8px 0 14px 0;
+    color: #ffd33d;
+    font-size: 19px;
+  }
+  .scene-box {
+    background: #0d1117;
+    border-radius: 10px;
+    padding: 20px;
+    min-height: 220px;
+    position: relative;
+    border: 1px solid #21262d;
+  }
+
+  /* ===== TECH CARD ===== */
+  .tech-card {
+    background: linear-gradient(145deg, #0a1628, #061021);
+    border: 1px solid #1f6feb;
+    border-radius: 14px;
+    padding: 24px;
+    position: relative;
+  }
+  .tech-card::before {
+    content: "⚙ KỸ THUẬT";
+    position: absolute;
+    top: -10px;
+    left: 18px;
+    background: #1f6feb;
+    color: white;
+    padding: 3px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .tech-card h3 {
+    margin: 8px 0 14px 0;
+    color: #58a6ff;
+    font-size: 19px;
+  }
+
+  /* ===== Animated scenes ===== */
+  .scene-svg {
+    width: 100%;
+    height: 230px;
+    background: #0d1117;
+    border-radius: 10px;
+    border: 1px solid #21262d;
+  }
+
+  /* ===== YAML block ===== */
+  .yaml-block {
+    background: #0d1117;
+    border-left: 4px solid #58a6ff;
+    border-radius: 6px;
+    padding: 16px 20px;
+    font-family: "SF Mono", "Menlo", monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin-top: 16px;
+  }
+  .yaml-block .yk { color: #79c0ff; }
+  .yaml-block .yv { color: #a5d6ff; }
+  .yaml-block .yc { color: #8b949e; font-style: italic; }
+  .yaml-block .yh { background: rgba(255,211,61,0.15); padding: 2px 6px; border-radius: 3px; }
+
+  /* ===== Pros/Cons ===== */
+  .proscons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .pc {
+    background: #0d1117;
+    border-radius: 10px;
+    padding: 16px;
+    border-left: 4px solid;
+  }
+  .pc.pros { border-left-color: #3fb950; }
+  .pc.cons { border-left-color: #f85149; }
+  .pc h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .pc.pros h4 { color: #3fb950; }
+  .pc.cons h4 { color: #f85149; }
+  .pc ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #e6edf3;
+    line-height: 1.7;
+    font-size: 14px;
+  }
+
+  /* ===== Use cases ===== */
+  .usecase {
+    background: linear-gradient(135deg, rgba(63,185,80,0.1), rgba(63,185,80,0.02));
+    border: 1px solid rgba(63,185,80,0.3);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-top: 20px;
+  }
+  .usecase h4 {
+    margin: 0 0 12px 0;
+    color: #3fb950;
+    font-size: 15px;
+  }
+  .usecase .cases {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .case {
+    background: #0d1117;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .case .ico { font-size: 28px; display: block; margin-bottom: 6px; }
+  .case b { color: #79c0ff; }
+
+  /* ===== Decision tree ===== */
+  .decision {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 30px;
+    background: #161b22;
+    border-radius: 16px;
+    border: 1px solid #30363d;
+  }
+  .decision h2 {
+    color: #58a6ff;
+    text-align: center;
+    margin: 0 0 24px 0;
+  }
+
+  /* ===== Comparison table ===== */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 14px;
+  }
+  .compare-table th {
+    background: #1f6feb;
+    color: white;
+    padding: 12px 14px;
+    text-align: left;
+    border: 1px solid #30363d;
+  }
+  .compare-table td {
+    padding: 12px 14px;
+    border: 1px solid #30363d;
+    background: #0d1117;
+    color: #e6edf3;
+  }
+  .compare-table tr:hover td { background: #1c2128; }
+  .compare-table .yes { color: #3fb950; font-weight: bold; }
+  .compare-table .no { color: #f85149; font-weight: bold; }
+  .compare-table .maybe { color: #ffd33d; font-weight: bold; }
+
+  /* ===== Animated character ===== */
+  .character {
+    position: absolute;
+    font-size: 32px;
+    transition: all 1s cubic-bezier(0.4, 0.0, 0.2, 1);
+    z-index: 10;
+  }
+
+  /* SVG common styles */
+  text { font-family: -apple-system, sans-serif; }
+  .svg-box { stroke: #30363d; stroke-width: 1.5; }
+  .svg-box.green { fill: rgba(63,185,80,0.15); stroke: #3fb950; }
+  .svg-box.blue { fill: rgba(31,111,235,0.15); stroke: #58a6ff; }
+  .svg-box.purple { fill: rgba(110,64,201,0.15); stroke: #6e40c9; }
+  .svg-box.orange { fill: rgba(247,129,102,0.15); stroke: #f78166; }
+  .svg-box.red { fill: rgba(248,81,73,0.1); stroke: #f85149; }
+  .svg-box.yellow { fill: rgba(255,211,61,0.1); stroke: #ffd33d; }
+  .svg-text { fill: #e6edf3; font-size: 12px; }
+  .svg-mono { fill: #7ee787; font-size: 10px; font-family: "SF Mono", monospace; }
+
+  .play-btn {
+    background: #1f6feb;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+  .play-btn:hover { background: #388bfd; }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: #8b949e;
+    font-size: 14px;
+  }
+  .footer a { color: #58a6ff; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏢 5 loại Service trong Kubernetes</h1>
+  <p class="tagline">Bài giảng kết hợp <b>ẩn dụ đời thường</b> (cho người không IT) và <b>chi tiết kỹ thuật</b> (cho kỹ sư) — sau bài này bạn sẽ biết chọn đúng loại Service cho mọi tình huống.</p>
+</div>
+
+<!-- ============ HERO ANALOGY ============ -->
+<div class="analogy-hero">
+  <h2>📖 Trước khi bắt đầu — hãy hình dung Kubernetes như 1 TÒA NHÀ VĂN PHÒNG</h2>
+  <div class="building">
+    <div class="building-img">
+      <span class="floor">🏢</span>
+    </div>
+    <div class="building-text">
+      Tưởng tượng bạn đang đứng trước 1 tòa nhà công ty lớn.
+      <ul style="margin: 10px 0; padding-left: 20px; line-height:1.8;">
+        <li>📦 <b>Pod</b> = một <b>nhân viên</b> ngồi làm việc trong tòa nhà</li>
+        <li>🔢 Mỗi nhân viên có 1 <b>số máy lẻ riêng</b> (Pod IP)</li>
+        <li>👥 Nhân viên có thể nghỉ việc, tuyển mới — <b>số máy lẻ thay đổi liên tục</b></li>
+        <li>🚪 <b>Service</b> = một <b>bộ phận</b> (Tech Support, Sales, Marketing...)</li>
+      </ul>
+      <div class="map">
+        ❓ Câu hỏi: Khi khách hàng cần gọi vào "Tech Support", họ KHÔNG nhớ số nhân viên cụ thể.
+        Họ gọi qua <b>tổng đài / địa chỉ chung của bộ phận</b> — đó chính là <b>Service</b>!
+      </div>
+      <div style="margin-top: 14px; color:#8b949e; font-size:13px; font-style: italic;">
+        Có 5 cách khác nhau để khách hàng "đến được" bộ phận. Mỗi cách = 1 loại Service. Click các tab bên dưới ⬇
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tabs-wrap">
+
+<!-- ============ TABS ============ -->
+<div class="tabs">
+  <div class="tab active" onclick="show(0, this)">
+    <span class="icon">📞</span>
+    <div class="name">ClusterIP</div>
+    <div class="sub">Số nội bộ</div>
+  </div>
+  <div class="tab" onclick="show(1, this)">
+    <span class="icon">🚪</span>
+    <div class="name">NodePort</div>
+    <div class="sub">Cửa phụ có số</div>
+  </div>
+  <div class="tab" onclick="show(2, this)">
+    <span class="icon">🛎</span>
+    <div class="name">LoadBalancer</div>
+    <div class="sub">Cổng chính sang trọng</div>
+  </div>
+  <div class="tab" onclick="show(3, this)">
+    <span class="icon">📮</span>
+    <div class="name">ExternalName</div>
+    <div class="sub">Địa chỉ chuyển tiếp</div>
+  </div>
+  <div class="tab" onclick="show(4, this)">
+    <span class="icon">📋</span>
+    <div class="name">Headless</div>
+    <div class="sub">Danh bạ trực tiếp</div>
+  </div>
+</div>
+
+<!-- ============ PANEL 0: ClusterIP ============ -->
+<div class="panel active" id="panel-0">
+  <h2 style="color:#58a6ff; margin: 0 0 6px 0; font-size: 26px;">📞 ClusterIP — Số nội bộ trong công ty</h2>
+  <p style="color:#8b949e; margin: 0 0 24px 0;"><b>Đây là loại MẶC ĐỊNH</b> khi bạn tạo Service mà không khai báo type. Phổ biến nhất trong production.</p>
+
+  <div class="panel-grid">
+    <!-- ANALOGY -->
+    <div class="analogy-card">
+      <h3>Hệ thống số nội bộ trong tòa nhà</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Building outline -->
+          <rect x="10" y="20" width="480" height="200" rx="10" class="svg-box yellow" stroke-dasharray="6,4"/>
+          <text x="20" y="42" class="svg-text" fill="#ffd33d" font-size="11" font-weight="bold">🏢 TOÀ NHÀ CÔNG TY</text>
+
+          <!-- Boss calls extension -->
+          <text x="40" y="80" font-size="32">👨‍💼</text>
+          <text x="32" y="125" class="svg-text" font-size="11">Sếp ở phòng A</text>
+          <text x="35" y="140" class="svg-mono">"Gọi ext. 1234"</text>
+
+          <!-- Phone system -->
+          <rect x="180" y="80" width="140" height="70" rx="8" class="svg-box blue"/>
+          <text x="250" y="105" class="svg-text" text-anchor="middle" fill="#58a6ff" font-weight="bold">📞 TỔNG ĐÀI</text>
+          <text x="250" y="123" class="svg-text" text-anchor="middle" font-size="11">Bộ phận Sales</text>
+          <text x="250" y="140" class="svg-mono" text-anchor="middle">ext. 1234 (cố định)</text>
+
+          <!-- 3 employees -->
+          <text x="350" y="60" font-size="24">👨‍💻</text>
+          <text x="340" y="85" class="svg-mono">Sales 1</text>
+          <text x="350" y="115" font-size="24">👩‍💻</text>
+          <text x="340" y="140" class="svg-mono">Sales 2</text>
+          <text x="350" y="170" font-size="24">🧑‍💻</text>
+          <text x="340" y="195" class="svg-mono">Sales 3</text>
+
+          <!-- Arrows -->
+          <line x1="80" y1="90" x2="180" y2="115" stroke="#ffd33d" stroke-width="2" marker-end="url(#arrow)"/>
+          <line x1="320" y1="105" x2="345" y2="65" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3"/>
+          <line x1="320" y1="115" x2="345" y2="120" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3"/>
+          <line x1="320" y1="125" x2="345" y2="175" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+          <!-- Block external -->
+          <text x="250" y="215" class="svg-text" fill="#f85149" text-anchor="middle" font-size="11">❌ Khách bên ngoài KHÔNG gọi được</text>
+
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#ffd33d"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <p style="margin: 14px 0 0 0; line-height: 1.7; color:#e6edf3;">
+        Mỗi bộ phận có 1 <b>số extension nội bộ</b>. Chỉ người <b>trong tòa nhà</b> mới quay số được.
+        Khách bên ngoài muốn gọi → phải qua tổng đài lễ tân (sẽ học ở các loại sau).
+      </p>
+    </div>
+
+    <!-- TECHNICAL -->
+    <div class="tech-card">
+      <h3>ClusterIP về mặt kỹ thuật</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Cluster boundary -->
+          <rect x="10" y="20" width="480" height="200" rx="10" class="svg-box" stroke-dasharray="6,4"/>
+          <text x="20" y="42" class="svg-text" fill="#58a6ff" font-size="11" font-weight="bold">K8s CLUSTER</text>
+
+          <!-- Frontend Pod -->
+          <rect x="30" y="65" width="100" height="55" rx="6" class="svg-box green"/>
+          <text x="80" y="85" class="svg-text" text-anchor="middle">📦 Frontend</text>
+          <text x="80" y="105" class="svg-mono" text-anchor="middle">10.244.1.5</text>
+
+          <!-- Service -->
+          <rect x="180" y="80" width="140" height="65" rx="8" class="svg-box blue"/>
+          <text x="250" y="100" class="svg-text" text-anchor="middle" fill="#58a6ff" font-weight="bold">⚙ Service</text>
+          <text x="250" y="118" class="svg-text" text-anchor="middle" font-size="11">ClusterIP</text>
+          <text x="250" y="135" class="svg-mono" text-anchor="middle">10.96.0.10:80</text>
+
+          <!-- Backend Pods -->
+          <rect x="370" y="40" width="110" height="42" rx="6" class="svg-box green"/>
+          <text x="425" y="58" class="svg-text" text-anchor="middle">📦 backend-1</text>
+          <text x="425" y="73" class="svg-mono" text-anchor="middle">10.244.1.8</text>
+
+          <rect x="370" y="95" width="110" height="42" rx="6" class="svg-box green"/>
+          <text x="425" y="113" class="svg-text" text-anchor="middle">📦 backend-2</text>
+          <text x="425" y="128" class="svg-mono" text-anchor="middle">10.244.2.4</text>
+
+          <rect x="370" y="150" width="110" height="42" rx="6" class="svg-box green"/>
+          <text x="425" y="168" class="svg-text" text-anchor="middle">📦 backend-3</text>
+          <text x="425" y="183" class="svg-mono" text-anchor="middle">10.244.3.7</text>
+
+          <!-- Arrows -->
+          <line x1="130" y1="92" x2="180" y2="105" stroke="#ffd33d" stroke-width="2"/>
+          <line x1="320" y1="100" x2="370" y2="60" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="320" y1="115" x2="370" y2="115" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="320" y1="130" x2="370" y2="170" stroke="#3fb950" stroke-width="1.5"/>
+
+          <!-- Internet blocked -->
+          <text x="250" y="210" class="svg-text" fill="#f85149" text-anchor="middle" font-size="11">❌ Internet không vào được trực tiếp</text>
+        </svg>
+      </div>
+
+      <div class="yaml-block">
+<span class="yk">apiVersion:</span> <span class="yv">v1</span>
+<span class="yk">kind:</span> <span class="yv">Service</span>
+<span class="yk">metadata:</span>
+  <span class="yk">name:</span> <span class="yv">backend-svc</span>
+<span class="yk">spec:</span>
+  <span class="yk">type:</span> <span class="yh">ClusterIP</span>   <span class="yc"># mặc định, có thể bỏ</span>
+  <span class="yk">selector:</span>
+    <span class="yk">app:</span> <span class="yv">backend</span>
+  <span class="yk">ports:</span>
+    - <span class="yk">port:</span> <span class="yv">80</span>          <span class="yc"># port của Service</span>
+      <span class="yk">targetPort:</span> <span class="yv">8080</span>  <span class="yc"># port của Pod</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="proscons">
+    <div class="pc pros">
+      <h4>✅ Ưu điểm</h4>
+      <ul>
+        <li>Bảo mật: không expose ra Internet</li>
+        <li>IP và DNS cố định trong cluster</li>
+        <li>Load balance tự động giữa Pod</li>
+        <li>Là loại nhẹ nhất, chi phí 0đ</li>
+      </ul>
+    </div>
+    <div class="pc cons">
+      <h4>⚠ Hạn chế</h4>
+      <ul>
+        <li>Không thể truy cập từ ngoài cluster</li>
+        <li>Để expose ra ngoài → cần kết hợp Ingress hoặc đổi sang LoadBalancer</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="usecase">
+    <h4>🎯 Khi nào dùng — Use cases thực tế</h4>
+    <div class="cases">
+      <div class="case">
+        <span class="ico">🔗</span>
+        <b>Microservices nội bộ</b><br>
+        <small>Frontend gọi Backend, Backend gọi Database</small>
+      </div>
+      <div class="case">
+        <span class="ico">💾</span>
+        <b>Database cluster</b><br>
+        <small>App gọi PostgreSQL/MongoDB nội bộ</small>
+      </div>
+      <div class="case">
+        <span class="ico">🔧</span>
+        <b>Internal tools</b><br>
+        <small>Prometheus, Grafana giao tiếp với nhau</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PANEL 1: NodePort ============ -->
+<div class="panel" id="panel-1">
+  <h2 style="color:#58a6ff; margin: 0 0 6px 0; font-size: 26px;">🚪 NodePort — Mở 1 cửa phụ ở MỖI Node</h2>
+  <p style="color:#8b949e; margin: 0 0 24px 0;">Phù hợp dev/test. Hiếm khi dùng production trực tiếp.</p>
+
+  <div class="panel-grid">
+    <div class="analogy-card">
+      <h3>Mỗi tòa nhà có 1 cửa phụ đánh số</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Customer outside -->
+          <text x="40" y="50" font-size="28">🚶</text>
+          <text x="35" y="80" class="svg-text" font-size="11">Khách lạ</text>
+          <text x="20" y="95" class="svg-mono">"Bấm cửa #30080"</text>
+
+          <!-- 3 buildings -->
+          <rect x="170" y="40" width="80" height="100" rx="6" class="svg-box yellow"/>
+          <text x="210" y="60" class="svg-text" text-anchor="middle" font-size="11">🏢 Toà 1</text>
+          <text x="210" y="78" font-size="20" text-anchor="middle">🚪</text>
+          <text x="210" y="100" class="svg-mono" text-anchor="middle">cửa #30080</text>
+
+          <rect x="270" y="40" width="80" height="100" rx="6" class="svg-box yellow"/>
+          <text x="310" y="60" class="svg-text" text-anchor="middle" font-size="11">🏢 Toà 2</text>
+          <text x="310" y="78" font-size="20" text-anchor="middle">🚪</text>
+          <text x="310" y="100" class="svg-mono" text-anchor="middle">cửa #30080</text>
+
+          <rect x="370" y="40" width="80" height="100" rx="6" class="svg-box yellow"/>
+          <text x="410" y="60" class="svg-text" text-anchor="middle" font-size="11">🏢 Toà 3</text>
+          <text x="410" y="78" font-size="20" text-anchor="middle">🚪</text>
+          <text x="410" y="100" class="svg-mono" text-anchor="middle">cửa #30080</text>
+
+          <!-- Arrow from customer to any building -->
+          <path d="M 80 60 Q 130 30 180 70" stroke="#ffd33d" stroke-width="2" fill="none" marker-end="url(#arrow2)"/>
+
+          <!-- All buildings → same dept -->
+          <rect x="180" y="170" width="240" height="50" rx="6" class="svg-box blue"/>
+          <text x="300" y="190" class="svg-text" text-anchor="middle" fill="#58a6ff" font-weight="bold">📞 Bộ phận Sales (chung)</text>
+          <text x="300" y="208" class="svg-mono" text-anchor="middle">tổng đài nội bộ ext. 1234</text>
+
+          <line x1="210" y1="140" x2="240" y2="170" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="310" y1="140" x2="310" y2="170" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="410" y1="140" x2="370" y2="170" stroke="#3fb950" stroke-width="1.5"/>
+
+          <defs>
+            <marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#ffd33d"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <p style="margin: 14px 0 0 0; line-height: 1.7;">
+        Công ty có nhiều tòa nhà (Node). Họ <b>mở cùng 1 cửa phụ</b> ở mỗi tòa, đánh số giống nhau (#30080).
+        Khách đến BẤT KỲ tòa nào, bấm cửa #30080 → đều dẫn vào bộ phận Sales.
+      </p>
+    </div>
+
+    <div class="tech-card">
+      <h3>NodePort về mặt kỹ thuật</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- External user -->
+          <text x="20" y="50" font-size="24">🌐</text>
+          <text x="15" y="80" class="svg-mono">User</text>
+
+          <!-- Cluster -->
+          <rect x="100" y="20" width="390" height="200" rx="10" class="svg-box" stroke-dasharray="6,4"/>
+          <text x="110" y="38" class="svg-text" fill="#58a6ff" font-size="11" font-weight="bold">K8s CLUSTER</text>
+
+          <!-- 3 Nodes -->
+          <rect x="115" y="55" width="100" height="50" rx="6" class="svg-box yellow"/>
+          <text x="165" y="74" class="svg-text" text-anchor="middle" font-size="11">🖥 Node 1</text>
+          <text x="165" y="92" class="svg-mono" text-anchor="middle">:30080 OPEN</text>
+
+          <rect x="225" y="55" width="100" height="50" rx="6" class="svg-box yellow"/>
+          <text x="275" y="74" class="svg-text" text-anchor="middle" font-size="11">🖥 Node 2</text>
+          <text x="275" y="92" class="svg-mono" text-anchor="middle">:30080 OPEN</text>
+
+          <rect x="335" y="55" width="100" height="50" rx="6" class="svg-box yellow"/>
+          <text x="385" y="74" class="svg-text" text-anchor="middle" font-size="11">🖥 Node 3</text>
+          <text x="385" y="92" class="svg-mono" text-anchor="middle">:30080 OPEN</text>
+
+          <!-- Service -->
+          <rect x="180" y="130" width="180" height="40" rx="6" class="svg-box blue"/>
+          <text x="270" y="148" class="svg-text" text-anchor="middle" fill="#58a6ff">⚙ Service (tự kèm ClusterIP)</text>
+          <text x="270" y="163" class="svg-mono" text-anchor="middle">port=80, nodePort=30080</text>
+
+          <!-- Pods -->
+          <rect x="135" y="185" width="80" height="30" rx="4" class="svg-box green"/>
+          <text x="175" y="203" class="svg-text" text-anchor="middle" font-size="11">📦 Pod 1</text>
+
+          <rect x="235" y="185" width="80" height="30" rx="4" class="svg-box green"/>
+          <text x="275" y="203" class="svg-text" text-anchor="middle" font-size="11">📦 Pod 2</text>
+
+          <rect x="335" y="185" width="80" height="30" rx="4" class="svg-box green"/>
+          <text x="375" y="203" class="svg-text" text-anchor="middle" font-size="11">📦 Pod 3</text>
+
+          <line x1="50" y1="65" x2="115" y2="78" stroke="#ffd33d" stroke-width="2"/>
+          <line x1="165" y1="105" x2="220" y2="130" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="275" y1="105" x2="275" y2="130" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="385" y1="105" x2="320" y2="130" stroke="#3fb950" stroke-width="1.5"/>
+        </svg>
+      </div>
+
+      <div class="yaml-block">
+<span class="yk">spec:</span>
+  <span class="yk">type:</span> <span class="yh">NodePort</span>
+  <span class="yk">selector:</span>
+    <span class="yk">app:</span> <span class="yv">my-app</span>
+  <span class="yk">ports:</span>
+    - <span class="yk">port:</span> <span class="yv">80</span>           <span class="yc"># Service port</span>
+      <span class="yk">targetPort:</span> <span class="yv">8080</span>   <span class="yc"># Pod port</span>
+      <span class="yk">nodePort:</span> <span class="yh">30080</span>    <span class="yc"># 30000-32767</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="proscons">
+    <div class="pc pros">
+      <h4>✅ Ưu điểm</h4>
+      <ul>
+        <li>Đơn giản — không cần cloud provider</li>
+        <li>Hoạt động trên mọi cluster (on-prem, bare metal)</li>
+        <li>Phù hợp demo, dev, test nhanh</li>
+        <li>Miễn phí</li>
+      </ul>
+    </div>
+    <div class="pc cons">
+      <h4>⚠ Hạn chế</h4>
+      <ul>
+        <li>Phải biết IP của Node (Node có thể thay đổi)</li>
+        <li>Port range giới hạn 30000-32767</li>
+        <li>Mất IP gốc của user (SNAT)</li>
+        <li>Không có HTTPS/TLS termination</li>
+        <li>Không scale tốt — mỗi service 1 port</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="usecase">
+    <h4>🎯 Khi nào dùng — Use cases thực tế</h4>
+    <div class="cases">
+      <div class="case">
+        <span class="ico">🧪</span>
+        <b>Local dev cluster</b><br>
+        <small>Minikube, Kind, k3d</small>
+      </div>
+      <div class="case">
+        <span class="ico">🏠</span>
+        <b>On-prem cluster</b><br>
+        <small>Khi không có cloud LB</small>
+      </div>
+      <div class="case">
+        <span class="ico">🎬</span>
+        <b>Demo nhanh</b><br>
+        <small>Show app cho team xem</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PANEL 2: LoadBalancer ============ -->
+<div class="panel" id="panel-2">
+  <h2 style="color:#58a6ff; margin: 0 0 6px 0; font-size: 26px;">🛎 LoadBalancer — Cổng chính sang trọng có concierge</h2>
+  <p style="color:#8b949e; margin: 0 0 24px 0;">Tiêu chuẩn vàng cho production trên cloud (AWS, GCP, Azure).</p>
+
+  <div class="panel-grid">
+    <div class="analogy-card">
+      <h3>Concierge cao cấp ở cổng chính</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Many customers -->
+          <text x="20" y="40" font-size="20">👨</text>
+          <text x="20" y="75" font-size="20">👩</text>
+          <text x="20" y="110" font-size="20">🧑</text>
+          <text x="20" y="145" font-size="20">👵</text>
+          <text x="20" y="180" font-size="20">👶</text>
+
+          <!-- Concierge -->
+          <rect x="120" y="60" width="160" height="120" rx="10" class="svg-box orange"/>
+          <text x="200" y="85" class="svg-text" text-anchor="middle" fill="#f78166" font-weight="bold" font-size="13">🛎 CONCIERGE</text>
+          <text x="200" y="105" class="svg-text" text-anchor="middle" font-size="11">Cổng chính sang trọng</text>
+          <text x="200" y="125" class="svg-mono" text-anchor="middle">"123 Main Street"</text>
+          <text x="200" y="148" class="svg-text" text-anchor="middle" font-size="10" fill="#8b949e">— Hỏi tên, chào đón —</text>
+          <text x="200" y="165" class="svg-text" text-anchor="middle" font-size="10" fill="#8b949e">— Điều phối khách —</text>
+
+          <!-- Building -->
+          <rect x="320" y="40" width="160" height="180" rx="8" class="svg-box yellow" stroke-dasharray="4,3"/>
+          <text x="400" y="60" class="svg-text" text-anchor="middle" font-size="11" fill="#ffd33d" font-weight="bold">🏢 TÒA NHÀ</text>
+
+          <text x="335" y="90" font-size="20">👨‍💻</text>
+          <text x="365" y="105" class="svg-mono">Sales 1</text>
+          <text x="335" y="130" font-size="20">👩‍💻</text>
+          <text x="365" y="145" class="svg-mono">Sales 2</text>
+          <text x="335" y="170" font-size="20">🧑‍💻</text>
+          <text x="365" y="185" class="svg-mono">Sales 3</text>
+
+          <!-- Arrows -->
+          <line x1="50" y1="50" x2="120" y2="100" stroke="#ffd33d" stroke-width="1.5"/>
+          <line x1="50" y1="85" x2="120" y2="115" stroke="#ffd33d" stroke-width="1.5"/>
+          <line x1="50" y1="120" x2="120" y2="130" stroke="#ffd33d" stroke-width="1.5"/>
+          <line x1="50" y1="155" x2="120" y2="145" stroke="#ffd33d" stroke-width="1.5"/>
+          <line x1="50" y1="190" x2="120" y2="160" stroke="#ffd33d" stroke-width="1.5"/>
+
+          <line x1="280" y1="100" x2="335" y2="92" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="280" y1="125" x2="335" y2="132" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="280" y1="150" x2="335" y2="172" stroke="#3fb950" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <p style="margin: 14px 0 0 0; line-height: 1.7;">
+        Cổng chính có <b>concierge chuyên nghiệp</b>. Tòa nhà có <b>địa chỉ đường công khai</b> (ai trên Internet cũng tìm được).
+        Concierge nhận TẤT CẢ khách → hỏi tên → điều phối vào nhân viên phù hợp. Đẹp, an toàn, nhưng <b>tốn tiền thuê concierge</b>.
+      </p>
+    </div>
+
+    <div class="tech-card">
+      <h3>LoadBalancer về mặt kỹ thuật</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Internet -->
+          <text x="30" y="40" font-size="22">🌐</text>
+          <text x="20" y="70" class="svg-text" font-size="11">Internet</text>
+
+          <!-- Cloud LB -->
+          <rect x="115" y="20" width="140" height="60" rx="10" class="svg-box orange"/>
+          <text x="185" y="42" class="svg-text" text-anchor="middle" fill="#f78166" font-weight="bold">☁ Cloud LB</text>
+          <text x="185" y="60" class="svg-text" text-anchor="middle" font-size="11">AWS ELB / GCP LB</text>
+          <text x="185" y="74" class="svg-mono" text-anchor="middle">54.10.1.5 (public)</text>
+
+          <!-- Cluster -->
+          <rect x="100" y="100" width="390" height="125" rx="10" class="svg-box" stroke-dasharray="6,4"/>
+          <text x="110" y="118" class="svg-text" fill="#58a6ff" font-size="11" font-weight="bold">K8s CLUSTER</text>
+
+          <!-- Service LB -->
+          <rect x="180" y="135" width="180" height="40" rx="6" class="svg-box blue"/>
+          <text x="270" y="153" class="svg-text" text-anchor="middle" fill="#58a6ff">⚙ Service (LoadBalancer)</text>
+          <text x="270" y="167" class="svg-mono" text-anchor="middle">tự tạo NodePort + ClusterIP</text>
+
+          <!-- Pods -->
+          <rect x="115" y="190" width="80" height="28" rx="4" class="svg-box green"/>
+          <text x="155" y="208" class="svg-text" text-anchor="middle" font-size="11">📦 Pod 1</text>
+
+          <rect x="215" y="190" width="80" height="28" rx="4" class="svg-box green"/>
+          <text x="255" y="208" class="svg-text" text-anchor="middle" font-size="11">📦 Pod 2</text>
+
+          <rect x="315" y="190" width="80" height="28" rx="4" class="svg-box green"/>
+          <text x="355" y="208" class="svg-text" text-anchor="middle" font-size="11">📦 Pod 3</text>
+
+          <rect x="395" y="190" width="80" height="28" rx="4" class="svg-box green"/>
+          <text x="435" y="208" class="svg-text" text-anchor="middle" font-size="11">📦 Pod 4</text>
+
+          <!-- Arrows -->
+          <line x1="65" y1="50" x2="115" y2="50" stroke="#ffd33d" stroke-width="2"/>
+          <line x1="185" y1="80" x2="270" y2="135" stroke="#ffd33d" stroke-width="2"/>
+          <line x1="200" y1="175" x2="155" y2="190" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="240" y1="175" x2="255" y2="190" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="290" y1="175" x2="355" y2="190" stroke="#3fb950" stroke-width="1.5"/>
+          <line x1="330" y1="175" x2="435" y2="190" stroke="#3fb950" stroke-width="1.5"/>
+        </svg>
+      </div>
+
+      <div class="yaml-block">
+<span class="yk">spec:</span>
+  <span class="yk">type:</span> <span class="yh">LoadBalancer</span>
+  <span class="yk">selector:</span>
+    <span class="yk">app:</span> <span class="yv">web</span>
+  <span class="yk">ports:</span>
+    - <span class="yk">port:</span> <span class="yv">80</span>
+      <span class="yk">targetPort:</span> <span class="yv">8080</span>
+  <span class="yc"># K8s tự gọi API cloud → tạo LB thật,</span>
+  <span class="yc"># gán IP public, status.loadBalancer.ingress</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="proscons">
+    <div class="pc pros">
+      <h4>✅ Ưu điểm</h4>
+      <ul>
+        <li>Có IP public → user truy cập trực tiếp</li>
+        <li>Cloud LB thường rất ổn định, cao cấp</li>
+        <li>Tích hợp HTTPS, WAF tùy provider</li>
+        <li>Auto health check, failover</li>
+      </ul>
+    </div>
+    <div class="pc cons">
+      <h4>⚠ Hạn chế</h4>
+      <ul>
+        <li>💰 <b>Tốn tiền</b>: ~$18/tháng/LB trên AWS</li>
+        <li>Mỗi Service = 1 LB riêng → 100 service = 100 LB</li>
+        <li>Chỉ có trên cloud (cần cloud-controller-manager)</li>
+        <li>Tốc độ tạo chậm: 1-3 phút</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="usecase">
+    <h4>🎯 Khi nào dùng — Use cases thực tế</h4>
+    <div class="cases">
+      <div class="case">
+        <span class="ico">🌍</span>
+        <b>Public web app</b><br>
+        <small>Frontend cần IP public</small>
+      </div>
+      <div class="case">
+        <span class="ico">🔌</span>
+        <b>API gateway</b><br>
+        <small>Endpoint cho mobile/3rd party</small>
+      </div>
+      <div class="case">
+        <span class="ico">🚪</span>
+        <b>Ingress Controller</b><br>
+        <small>1 LB + nhiều service phía sau</small>
+      </div>
+    </div>
+    <div style="margin-top: 16px; padding: 12px 16px; background: rgba(255,211,61,0.1); border-left: 4px solid #ffd33d; border-radius: 6px; font-size: 13px;">
+      💡 <b>Tip pro:</b> Đừng dùng LoadBalancer cho TỪNG service — quá tốn tiền! Dùng <b>1 LoadBalancer cho Ingress Controller</b> (nginx-ingress, Traefik), rồi route nội bộ qua HTTP path/host.
+    </div>
+  </div>
+</div>
+
+<!-- ============ PANEL 3: ExternalName ============ -->
+<div class="panel" id="panel-3">
+  <h2 style="color:#58a6ff; margin: 0 0 6px 0; font-size: 26px;">📮 ExternalName — Địa chỉ chuyển tiếp (như đổi nhà)</h2>
+  <p style="color:#8b949e; margin: 0 0 24px 0;">Loại đặc biệt: KHÔNG có Pod, KHÔNG có IP. Chỉ là 1 alias DNS.</p>
+
+  <div class="panel-grid">
+    <div class="analogy-card">
+      <h3>Như khi công ty đổi địa chỉ</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Old building -->
+          <rect x="30" y="50" width="120" height="140" rx="8" class="svg-box yellow" stroke-dasharray="4,3"/>
+          <text x="90" y="75" class="svg-text" text-anchor="middle" fill="#ffd33d" font-weight="bold">🏠 Văn phòng cũ</text>
+          <text x="90" y="95" class="svg-text" text-anchor="middle" font-size="11">"Hà Nội"</text>
+
+          <!-- Mailbox notice -->
+          <rect x="40" y="115" width="100" height="60" rx="4" class="svg-box red"/>
+          <text x="90" y="135" class="svg-text" text-anchor="middle" font-size="10" fill="#f85149">📋 Ghi chú</text>
+          <text x="90" y="150" class="svg-text" text-anchor="middle" font-size="9">"Đã chuyển</text>
+          <text x="90" y="162" class="svg-text" text-anchor="middle" font-size="9">về Sài Gòn"</text>
+
+          <!-- Customer asking -->
+          <text x="180" y="80" font-size="22">🚶</text>
+          <text x="170" y="105" class="svg-text" font-size="10">Khách đến tìm</text>
+
+          <!-- Arrow -->
+          <line x1="170" y1="120" x2="220" y2="120" stroke="#ffd33d" stroke-width="2" marker-end="url(#arrow3)"/>
+          <text x="195" y="115" class="svg-text" font-size="9" text-anchor="middle">tự đi tiếp →</text>
+
+          <!-- New building -->
+          <rect x="320" y="50" width="160" height="140" rx="8" class="svg-box green"/>
+          <text x="400" y="75" class="svg-text" text-anchor="middle" fill="#3fb950" font-weight="bold">🏢 Văn phòng mới</text>
+          <text x="400" y="95" class="svg-text" text-anchor="middle" font-size="11">"Sài Gòn"</text>
+          <text x="400" y="125" font-size="40" text-anchor="middle">🏬</text>
+          <text x="400" y="170" class="svg-mono" text-anchor="middle">123 Lê Lợi, Q1</text>
+
+          <defs>
+            <marker id="arrow3" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="#ffd33d"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <p style="margin: 14px 0 0 0; line-height: 1.7;">
+        Bạn vẫn gửi thư đến địa chỉ cũ "Hà Nội", nhưng có <b>note dán trên cửa</b> nói "đã chuyển vào Sài Gòn".
+        Bưu tá <b>tự chuyển tiếp</b> thư đến đúng địa chỉ mới mà bạn không cần biết!
+      </p>
+    </div>
+
+    <div class="tech-card">
+      <h3>ExternalName về mặt kỹ thuật</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Cluster -->
+          <rect x="10" y="20" width="280" height="200" rx="10" class="svg-box" stroke-dasharray="6,4"/>
+          <text x="20" y="40" class="svg-text" fill="#58a6ff" font-size="11" font-weight="bold">K8s CLUSTER</text>
+
+          <!-- App Pod -->
+          <rect x="30" y="60" width="120" height="50" rx="6" class="svg-box green"/>
+          <text x="90" y="80" class="svg-text" text-anchor="middle">📦 App Pod</text>
+          <text x="90" y="100" class="svg-mono" text-anchor="middle">gọi my-db.svc</text>
+
+          <!-- ExternalName Service -->
+          <rect x="30" y="135" width="240" height="65" rx="8" class="svg-box orange"/>
+          <text x="150" y="155" class="svg-text" text-anchor="middle" fill="#f78166" font-weight="bold">⚙ Service (ExternalName)</text>
+          <text x="150" y="172" class="svg-text" text-anchor="middle" font-size="11">CNAME →</text>
+          <text x="150" y="190" class="svg-mono" text-anchor="middle">db.example.com</text>
+
+          <line x1="90" y1="110" x2="90" y2="135" stroke="#ffd33d" stroke-width="2"/>
+
+          <!-- Arrow leaving cluster -->
+          <line x1="270" y1="160" x2="350" y2="100" stroke="#ffd33d" stroke-width="2" stroke-dasharray="4,3"/>
+
+          <!-- External -->
+          <rect x="320" y="60" width="160" height="80" rx="8" class="svg-box red"/>
+          <text x="400" y="82" class="svg-text" text-anchor="middle" fill="#f85149" font-weight="bold">🗄 AWS RDS</text>
+          <text x="400" y="100" class="svg-text" text-anchor="middle" font-size="11">(ngoài K8s)</text>
+          <text x="400" y="118" class="svg-mono" text-anchor="middle">db.example.com</text>
+        </svg>
+      </div>
+
+      <div class="yaml-block">
+<span class="yk">apiVersion:</span> <span class="yv">v1</span>
+<span class="yk">kind:</span> <span class="yv">Service</span>
+<span class="yk">metadata:</span>
+  <span class="yk">name:</span> <span class="yv">my-db</span>
+<span class="yk">spec:</span>
+  <span class="yk">type:</span> <span class="yh">ExternalName</span>
+  <span class="yk">externalName:</span> <span class="yv">db.example.com</span>
+  <span class="yc"># KHÔNG có selector, KHÔNG có ports</span>
+  <span class="yc"># KHÔNG có Pod, KHÔNG có ClusterIP</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="proscons">
+    <div class="pc pros">
+      <h4>✅ Ưu điểm</h4>
+      <ul>
+        <li>Code app chỉ cần biết DNS nội bộ <code>my-db.svc</code></li>
+        <li>Đổi backend (RDS → MongoDB Atlas) chỉ cần sửa Service, app không động</li>
+        <li>Không tốn tài nguyên — chỉ là DNS record</li>
+      </ul>
+    </div>
+    <div class="pc cons">
+      <h4>⚠ Hạn chế</h4>
+      <ul>
+        <li>Không load balance (CoreDNS chỉ trả về 1 CNAME)</li>
+        <li>Không có HTTPS termination</li>
+        <li>NetworkPolicy không apply được</li>
+        <li>Phụ thuộc DNS bên ngoài hoạt động</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="usecase">
+    <h4>🎯 Khi nào dùng — Use cases thực tế</h4>
+    <div class="cases">
+      <div class="case">
+        <span class="ico">☁</span>
+        <b>Managed DB</b><br>
+        <small>AWS RDS, Cloud SQL, MongoDB Atlas</small>
+      </div>
+      <div class="case">
+        <span class="ico">🔄</span>
+        <b>Migration tạm</b><br>
+        <small>Service cũ ngoài K8s, dần move vào</small>
+      </div>
+      <div class="case">
+        <span class="ico">🌉</span>
+        <b>Multi-cluster</b><br>
+        <small>Service ở cluster khác</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PANEL 4: Headless ============ -->
+<div class="panel" id="panel-4">
+  <h2 style="color:#58a6ff; margin: 0 0 6px 0; font-size: 26px;">📋 Headless Service — Danh bạ trực tiếp toàn bộ nhân viên</h2>
+  <p style="color:#8b949e; margin: 0 0 24px 0;">Trường hợp đặc biệt: <code style="background:#0d1117;padding:2px 6px;border-radius:3px;">clusterIP: None</code>. Cho StatefulSet, DB cluster.</p>
+
+  <div class="panel-grid">
+    <div class="analogy-card">
+      <h3>Khi khách cần gọi đúng nhân viên cụ thể</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Customer -->
+          <text x="30" y="50" font-size="28">👨‍💼</text>
+          <text x="20" y="80" class="svg-text" font-size="11">Khách hàng</text>
+          <text x="15" y="95" class="svg-text" font-size="10">"Cần gặp riêng</text>
+          <text x="15" y="108" class="svg-text" font-size="10">'master DB'"</text>
+
+          <!-- Phonebook -->
+          <rect x="160" y="40" width="160" height="170" rx="8" class="svg-box purple"/>
+          <text x="240" y="62" class="svg-text" text-anchor="middle" fill="#d2a8ff" font-weight="bold">📋 Danh bạ trực tiếp</text>
+          <text x="240" y="80" class="svg-text" text-anchor="middle" font-size="10" fill="#8b949e">(không qua tổng đài)</text>
+
+          <text x="170" y="105" class="svg-mono">📞 Master:</text>
+          <text x="170" y="120" class="svg-mono" fill="#3fb950">  10.244.1.5</text>
+          <text x="170" y="140" class="svg-mono">📞 Replica1:</text>
+          <text x="170" y="155" class="svg-mono" fill="#3fb950">  10.244.1.6</text>
+          <text x="170" y="175" class="svg-mono">📞 Replica2:</text>
+          <text x="170" y="190" class="svg-mono" fill="#3fb950">  10.244.1.7</text>
+
+          <!-- Direct call to specific -->
+          <text x="380" y="50" font-size="22">👨‍💻</text>
+          <text x="370" y="75" class="svg-mono">Master</text>
+          <text x="380" y="105" font-size="22">👩‍💻</text>
+          <text x="370" y="130" class="svg-mono">Replica1</text>
+          <text x="380" y="160" font-size="22">🧑‍💻</text>
+          <text x="370" y="185" class="svg-mono">Replica2</text>
+
+          <!-- Arrows -->
+          <line x1="80" y1="60" x2="160" y2="100" stroke="#ffd33d" stroke-width="1.5"/>
+          <line x1="320" y1="115" x2="370" y2="55" stroke="#3fb950" stroke-width="2"/>
+          <text x="345" y="80" class="svg-text" font-size="9" fill="#3fb950">"chọn Master!"</text>
+        </svg>
+      </div>
+      <p style="margin: 14px 0 0 0; line-height: 1.7;">
+        Thay vì 1 tổng đài chung "bộ phận DB", khách <b>cần biết SỐ MÁY của TỪNG nhân viên</b>:
+        ai là Master (ghi data), ai là Replica (chỉ đọc). <b>Khách tự quyết</b> gọi ai chứ không để tổng đài random!
+      </p>
+    </div>
+
+    <div class="tech-card">
+      <h3>Headless về mặt kỹ thuật</h3>
+      <div class="scene-box">
+        <svg viewBox="0 0 500 240" class="scene-svg" style="background: transparent;">
+          <!-- Client Pod -->
+          <rect x="20" y="50" width="100" height="50" rx="6" class="svg-box green"/>
+          <text x="70" y="70" class="svg-text" text-anchor="middle">📦 Client</text>
+          <text x="70" y="88" class="svg-mono" text-anchor="middle">nslookup db.svc</text>
+
+          <!-- CoreDNS -->
+          <rect x="160" y="50" width="120" height="50" rx="6" class="svg-box blue"/>
+          <text x="220" y="70" class="svg-text" text-anchor="middle" fill="#58a6ff">🌀 CoreDNS</text>
+          <text x="220" y="88" class="svg-text" text-anchor="middle" font-size="11">trả NHIỀU IP</text>
+
+          <!-- DNS response -->
+          <rect x="320" y="20" width="160" height="110" rx="8" class="svg-box yellow"/>
+          <text x="400" y="38" class="svg-text" text-anchor="middle" fill="#ffd33d" font-weight="bold" font-size="11">📋 DNS response</text>
+          <text x="330" y="58" class="svg-mono">10.244.1.5</text>
+          <text x="330" y="75" class="svg-mono">10.244.1.6</text>
+          <text x="330" y="92" class="svg-mono">10.244.1.7</text>
+          <text x="330" y="115" class="svg-text" font-size="10" fill="#8b949e">(không phải Service IP!)</text>
+
+          <line x1="120" y1="75" x2="160" y2="75" stroke="#ffd33d" stroke-width="2"/>
+          <line x1="280" y1="75" x2="320" y2="75" stroke="#ffd33d" stroke-width="2"/>
+
+          <!-- Pods directly -->
+          <rect x="40" y="160" width="100" height="40" rx="4" class="svg-box green"/>
+          <text x="90" y="180" class="svg-text" text-anchor="middle" font-size="11">📦 db-0 (master)</text>
+          <text x="90" y="194" class="svg-mono" text-anchor="middle">10.244.1.5</text>
+
+          <rect x="160" y="160" width="100" height="40" rx="4" class="svg-box green"/>
+          <text x="210" y="180" class="svg-text" text-anchor="middle" font-size="11">📦 db-1 (replica)</text>
+          <text x="210" y="194" class="svg-mono" text-anchor="middle">10.244.1.6</text>
+
+          <rect x="280" y="160" width="100" height="40" rx="4" class="svg-box green"/>
+          <text x="330" y="180" class="svg-text" text-anchor="middle" font-size="11">📦 db-2 (replica)</text>
+          <text x="330" y="194" class="svg-mono" text-anchor="middle">10.244.1.7</text>
+
+          <!-- Direct connection -->
+          <line x1="70" y1="100" x2="90" y2="160" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="3,2"/>
+          <text x="40" y="135" class="svg-text" font-size="10" fill="#3fb950">client tự kết nối thẳng</text>
+        </svg>
+      </div>
+
+      <div class="yaml-block">
+<span class="yk">apiVersion:</span> <span class="yv">v1</span>
+<span class="yk">kind:</span> <span class="yv">Service</span>
+<span class="yk">metadata:</span>
+  <span class="yk">name:</span> <span class="yv">db</span>
+<span class="yk">spec:</span>
+  <span class="yk">type:</span> <span class="yv">ClusterIP</span>
+  <span class="yk">clusterIP:</span> <span class="yh">None</span>     <span class="yc"># ← điểm khác biệt!</span>
+  <span class="yk">selector:</span>
+    <span class="yk">app:</span> <span class="yv">db</span>
+  <span class="yk">ports:</span>
+    - <span class="yk">port:</span> <span class="yv">5432</span>
+      </div>
+      <p style="margin-top: 12px; font-size: 13px; color: #8b949e;">
+        Khi đi kèm StatefulSet, mỗi Pod còn có DNS riêng:<br>
+        <code style="background:#0d1117;padding:2px 6px;border-radius:3px;color:#7ee787;font-family:monospace;">db-0.db.default.svc.cluster.local</code>
+      </p>
+    </div>
+  </div>
+
+  <div class="proscons">
+    <div class="pc pros">
+      <h4>✅ Ưu điểm</h4>
+      <ul>
+        <li>Client biết IP của TỪNG Pod riêng biệt</li>
+        <li>Phù hợp StatefulSet (Pod có vai trò khác nhau)</li>
+        <li>Bypass kube-proxy → connection bền vững (gRPC stream)</li>
+        <li>Không tốn ClusterIP</li>
+      </ul>
+    </div>
+    <div class="pc cons">
+      <h4>⚠ Hạn chế</h4>
+      <ul>
+        <li>Không có load balancing tự động — client tự xử lý</li>
+        <li>Nếu Pod chết, DNS cache có thể delay → client gọi sai</li>
+        <li>App phải hỗ trợ multi-IP discovery</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="usecase">
+    <h4>🎯 Khi nào dùng — Use cases thực tế</h4>
+    <div class="cases">
+      <div class="case">
+        <span class="ico">🗄</span>
+        <b>StatefulSet DB</b><br>
+        <small>MongoDB, Cassandra, PostgreSQL</small>
+      </div>
+      <div class="case">
+        <span class="ico">📨</span>
+        <b>Message broker</b><br>
+        <small>Kafka brokers, RabbitMQ cluster</small>
+      </div>
+      <div class="case">
+        <span class="ico">🕸</span>
+        <b>Service mesh</b><br>
+        <small>Consul, Zookeeper, etcd</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- ============ DECISION TREE ============ -->
+<div class="decision">
+  <h2>🧭 Cây quyết định: Tôi nên chọn loại nào?</h2>
+  <div style="display: flex; justify-content: center;">
+  <svg viewBox="0 0 1000 480" style="max-width: 1000px; width: 100%;">
+    <!-- Start -->
+    <rect x="400" y="20" width="200" height="50" rx="25" fill="#1f6feb" stroke="#58a6ff" stroke-width="2"/>
+    <text x="500" y="50" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Bắt đầu chọn Service</text>
+
+    <!-- Q1: Service nằm trong K8s? -->
+    <line x1="500" y1="70" x2="500" y2="100" stroke="#58a6ff" stroke-width="2"/>
+    <polygon points="495,100 505,100 500,110" fill="#58a6ff"/>
+
+    <rect x="350" y="115" width="300" height="50" rx="8" fill="#161b22" stroke="#ffd33d" stroke-width="2"/>
+    <text x="500" y="140" text-anchor="middle" fill="#ffd33d" font-size="13" font-weight="bold">❓ Backend nằm TRONG cluster?</text>
+    <text x="500" y="156" text-anchor="middle" fill="#8b949e" font-size="11">(có Pod thật?)</text>
+
+    <!-- No → ExternalName -->
+    <line x1="350" y1="140" x2="180" y2="140" stroke="#f78166" stroke-width="2"/>
+    <text x="265" y="135" text-anchor="middle" fill="#f78166" font-size="12" font-weight="bold">KHÔNG</text>
+    <line x1="180" y1="140" x2="180" y2="200" stroke="#f78166" stroke-width="2"/>
+    <polygon points="175,200 185,200 180,210" fill="#f78166"/>
+
+    <rect x="80" y="215" width="200" height="60" rx="10" fill="#db6d28" stroke="#f78166" stroke-width="2"/>
+    <text x="180" y="240" text-anchor="middle" fill="white" font-size="13" font-weight="bold">📮 ExternalName</text>
+    <text x="180" y="258" text-anchor="middle" fill="white" font-size="11">CNAME đến địa chỉ ngoài</text>
+
+    <!-- Yes → Q2 -->
+    <line x1="500" y1="165" x2="500" y2="195" stroke="#3fb950" stroke-width="2"/>
+    <text x="525" y="183" fill="#3fb950" font-size="12" font-weight="bold">CÓ</text>
+    <polygon points="495,195 505,195 500,205" fill="#3fb950"/>
+
+    <rect x="320" y="210" width="360" height="50" rx="8" fill="#161b22" stroke="#ffd33d" stroke-width="2"/>
+    <text x="500" y="235" text-anchor="middle" fill="#ffd33d" font-size="13" font-weight="bold">❓ Có cần truy cập từ Internet?</text>
+    <text x="500" y="251" text-anchor="middle" fill="#8b949e" font-size="11">(user bên ngoài cluster cần kết nối?)</text>
+
+    <!-- No → Q3 (Internal) -->
+    <line x1="320" y1="235" x2="120" y2="235" stroke="#58a6ff" stroke-width="2"/>
+    <text x="220" y="230" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="bold">KHÔNG (nội bộ)</text>
+    <line x1="120" y1="235" x2="120" y2="295" stroke="#58a6ff" stroke-width="2"/>
+    <polygon points="115,295 125,295 120,305" fill="#58a6ff"/>
+
+    <rect x="20" y="310" width="200" height="50" rx="8" fill="#161b22" stroke="#ffd33d" stroke-width="2"/>
+    <text x="120" y="332" text-anchor="middle" fill="#ffd33d" font-size="12" font-weight="bold">❓ StatefulSet/DB cluster?</text>
+
+    <line x1="20" y1="335" x2="-20" y2="335" stroke="#d2a8ff" stroke-width="0"/>
+    <line x1="120" y1="360" x2="120" y2="395" stroke="#d2a8ff" stroke-width="2"/>
+    <line x1="120" y1="395" x2="50" y2="395" stroke="#d2a8ff" stroke-width="2"/>
+    <text x="130" y="380" fill="#d2a8ff" font-size="11" font-weight="bold">CÓ</text>
+    <polygon points="50,395 50,400 50,400 50,395" fill="#d2a8ff"/>
+    <line x1="50" y1="395" x2="50" y2="410" stroke="#d2a8ff" stroke-width="2"/>
+    <polygon points="45,410 55,410 50,420" fill="#d2a8ff"/>
+
+    <rect x="0" y="425" width="180" height="50" rx="10" fill="#6e40c9" stroke="#d2a8ff" stroke-width="2"/>
+    <text x="90" y="450" text-anchor="middle" fill="white" font-size="13" font-weight="bold">📋 Headless</text>
+    <text x="90" y="466" text-anchor="middle" fill="white" font-size="10">clusterIP: None</text>
+
+    <!-- KHÔNG → ClusterIP -->
+    <line x1="120" y1="360" x2="220" y2="395" stroke="#58a6ff" stroke-width="2"/>
+    <text x="195" y="378" fill="#58a6ff" font-size="11" font-weight="bold">KHÔNG</text>
+    <polygon points="215,395 225,395 220,405" fill="#58a6ff"/>
+
+    <rect x="200" y="425" width="180" height="50" rx="10" fill="#1f6feb" stroke="#58a6ff" stroke-width="2"/>
+    <text x="290" y="450" text-anchor="middle" fill="white" font-size="13" font-weight="bold">📞 ClusterIP</text>
+    <text x="290" y="466" text-anchor="middle" fill="white" font-size="10">mặc định</text>
+
+    <!-- Yes (external) → Q4 -->
+    <line x1="680" y1="235" x2="880" y2="235" stroke="#3fb950" stroke-width="2"/>
+    <text x="780" y="230" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="bold">CÓ (public)</text>
+    <line x1="880" y1="235" x2="880" y2="295" stroke="#3fb950" stroke-width="2"/>
+    <polygon points="875,295 885,295 880,305" fill="#3fb950"/>
+
+    <rect x="730" y="310" width="300" height="50" rx="8" fill="#161b22" stroke="#ffd33d" stroke-width="2"/>
+    <text x="880" y="332" text-anchor="middle" fill="#ffd33d" font-size="12" font-weight="bold">❓ Đang chạy trên cloud?</text>
+    <text x="880" y="350" text-anchor="middle" fill="#8b949e" font-size="11">(AWS/GCP/Azure)</text>
+
+    <!-- Yes → LoadBalancer -->
+    <line x1="880" y1="360" x2="880" y2="395" stroke="#f78166" stroke-width="2"/>
+    <text x="900" y="380" fill="#f78166" font-size="11" font-weight="bold">CÓ</text>
+    <polygon points="875,395 885,395 880,405" fill="#f78166"/>
+
+    <rect x="800" y="425" width="200" height="50" rx="10" fill="#db6d28" stroke="#f78166" stroke-width="2"/>
+    <text x="900" y="450" text-anchor="middle" fill="white" font-size="13" font-weight="bold">🛎 LoadBalancer</text>
+    <text x="900" y="466" text-anchor="middle" fill="white" font-size="10">+ Ingress (tip pro)</text>
+
+    <!-- No (on-prem) → NodePort -->
+    <line x1="730" y1="335" x2="600" y2="395" stroke="#ffd33d" stroke-width="2"/>
+    <text x="620" y="378" fill="#ffd33d" font-size="11" font-weight="bold">KHÔNG (on-prem)</text>
+    <polygon points="595,395 605,395 600,405" fill="#ffd33d"/>
+
+    <rect x="510" y="425" width="200" height="50" rx="10" fill="#9e6a03" stroke="#ffd33d" stroke-width="2"/>
+    <text x="610" y="450" text-anchor="middle" fill="white" font-size="13" font-weight="bold">🚪 NodePort</text>
+    <text x="610" y="466" text-anchor="middle" fill="white" font-size="10">+ MetalLB nếu prod</text>
+  </svg>
+  </div>
+</div>
+
+<!-- ============ COMPARISON TABLE ============ -->
+<div class="decision">
+  <h2>📊 Bảng so sánh tổng kết 5 loại</h2>
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Tiêu chí</th>
+        <th>📞 ClusterIP</th>
+        <th>🚪 NodePort</th>
+        <th>🛎 LoadBalancer</th>
+        <th>📮 ExternalName</th>
+        <th>📋 Headless</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Truy cập từ Internet</b></td>
+        <td class="no">❌ Không</td>
+        <td class="maybe">⚠ Qua Node IP</td>
+        <td class="yes">✅ Có</td>
+        <td class="no">❌ Không</td>
+        <td class="no">❌ Không</td>
+      </tr>
+      <tr>
+        <td><b>Có IP cố định</b></td>
+        <td class="yes">✅ ClusterIP</td>
+        <td class="yes">✅ ClusterIP + NodePort</td>
+        <td class="yes">✅ Public IP</td>
+        <td class="no">❌ Chỉ DNS CNAME</td>
+        <td class="no">❌ clusterIP: None</td>
+      </tr>
+      <tr>
+        <td><b>Load balancing</b></td>
+        <td class="yes">✅ Tự động</td>
+        <td class="yes">✅ Tự động</td>
+        <td class="yes">✅ Tự động</td>
+        <td class="no">❌ Không</td>
+        <td class="maybe">⚠ Client tự làm</td>
+      </tr>
+      <tr>
+        <td><b>Chi phí cloud</b></td>
+        <td class="yes">Miễn phí</td>
+        <td class="yes">Miễn phí</td>
+        <td class="no">~$18/tháng/LB</td>
+        <td class="yes">Miễn phí</td>
+        <td class="yes">Miễn phí</td>
+      </tr>
+      <tr>
+        <td><b>Cần cloud provider?</b></td>
+        <td class="no">Không</td>
+        <td class="no">Không</td>
+        <td class="yes">Có (hoặc MetalLB on-prem)</td>
+        <td class="no">Không</td>
+        <td class="no">Không</td>
+      </tr>
+      <tr>
+        <td><b>Use case chính</b></td>
+        <td>Service nội bộ</td>
+        <td>Dev/test</td>
+        <td>Production public</td>
+        <td>Trỏ ra DB ngoài</td>
+        <td>StatefulSet</td>
+      </tr>
+      <tr>
+        <td><b>Mức phổ biến</b></td>
+        <td>⭐⭐⭐⭐⭐</td>
+        <td>⭐⭐</td>
+        <td>⭐⭐⭐⭐</td>
+        <td>⭐⭐</td>
+        <td>⭐⭐⭐</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 24px; padding: 18px 22px; background: linear-gradient(135deg, rgba(31,111,235,0.15), rgba(110,64,201,0.1)); border-radius: 10px; border-left: 4px solid #58a6ff;">
+    <h3 style="color: #58a6ff; margin: 0 0 10px 0;">💡 5 LỜI KHUYÊN VÀNG TỪ CHUYÊN GIA</h3>
+    <ol style="margin: 0; padding-left: 24px; line-height: 1.9;">
+      <li><b>90% trường hợp dùng ClusterIP</b> — kể cả service public, cũng nên expose qua Ingress (mà Ingress dùng ClusterIP nội bộ).</li>
+      <li><b>Đừng tạo nhiều LoadBalancer</b> — 1 cluster có 100 service mà ai cũng LoadBalancer = 100 IP public = $1800/tháng. Dùng <b>1 Ingress + nhiều ClusterIP</b>.</li>
+      <li><b>NodePort cho production = anti-pattern</b> — trừ khi không có lựa chọn (on-prem nhỏ). Cài <b>MetalLB</b> để có LoadBalancer trên on-prem.</li>
+      <li><b>Headless là dấu hiệu của StatefulSet</b> — nếu bạn tạo Headless cho Deployment thường, gần như chắc bạn đang dùng sai.</li>
+      <li><b>ExternalName là tool migration tuyệt vời</b> — khi đưa app từ legacy vào K8s, bắt đầu với ExternalName trỏ về system cũ, dần thay bằng ClusterIP khi sẵn sàng.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="footer">
+  Quay lại <a href="index.html">📚 mục lục</a> ·
+  Đọc thêm <a href="08-K8s-Networking-Deep-Dive.md">🔬 Deep dive networking</a> ·
+  Xem <a href="07-packet-journey-deep.html">🔬 Packet journey animation</a>
+</div>
+
+<script>
+  function show(idx, btn) {
+    document.querySelectorAll('.panel').forEach((p, i) => {
+      p.classList.toggle('active', i === idx);
+    });
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

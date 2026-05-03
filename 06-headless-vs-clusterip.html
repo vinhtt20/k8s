@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Animation 6 — Headless vs ClusterIP</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #0d1117; color: #e6edf3;
+    margin: 0; padding: 30px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { color: #58a6ff; margin-bottom: 5px; }
+  p.sub { color: #8b949e; margin-bottom: 25px; max-width: 800px; text-align:center; }
+
+  .compare { display: flex; gap: 25px; }
+
+  .panel {
+    background: #161b22;
+    border-radius: 12px;
+    padding: 25px;
+    width: 440px;
+    position: relative;
+  }
+  .panel h2 { margin-top: 0; color: #58a6ff; }
+  .panel .yaml {
+    background: #0d1117;
+    border-radius: 6px;
+    padding: 12px;
+    font-family: "SF Mono", monospace;
+    font-size: 12px;
+    color: #e6edf3;
+    line-height: 1.6;
+  }
+  .yaml .key { color: #79c0ff; }
+  .yaml .val { color: #a5d6ff; }
+  .yaml .comment { color: #8b949e; }
+
+  .dns-result {
+    margin-top: 15px;
+    background: #0d1117;
+    border: 1px dashed #58a6ff;
+    border-radius: 6px;
+    padding: 12px;
+    font-family: "SF Mono", monospace;
+    font-size: 12px;
+    min-height: 80px;
+    color: #79c0ff;
+  }
+  .dns-result .line { opacity: 0; transition: opacity 0.4s; }
+  .dns-result .line.show { opacity: 1; }
+
+  .flow {
+    margin-top: 15px;
+    background: #0d1117;
+    border-radius: 6px;
+    padding: 12px;
+    height: 200px;
+    position: relative;
+  }
+  .ball {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #ffd33d;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #ffd33d;
+    transition: all 1s ease;
+    opacity: 0;
+  }
+  .pod-mini {
+    position: absolute;
+    width: 70px; padding: 8px;
+    background: #238636;
+    border-radius: 6px;
+    color: white;
+    font-size: 11px;
+    text-align: center;
+  }
+  .svc-mini {
+    position: absolute;
+    background: #1f6feb;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+
+  button {
+    margin-top: 12px;
+    background: #1f6feb; color: white;
+    border: none; padding: 10px 18px; border-radius: 6px;
+    font-size: 14px; cursor: pointer; width: 100%;
+  }
+  button:hover { background: #388bfd; }
+
+  .note {
+    margin-top: 25px;
+    background: #21262d;
+    border-left: 4px solid #ffd33d;
+    padding: 14px 22px;
+    border-radius: 6px;
+    max-width: 905px;
+    line-height: 1.7;
+    font-size: 14px;
+  }
+  .note code { background:#0d1117; padding: 2px 6px; border-radius: 3px; font-family: "SF Mono", monospace; }
+</style>
+</head>
+<body>
+  <h1>🎬 Animation 6: ClusterIP vs Headless Service</h1>
+  <p class="sub">Cùng 1 set Pod, 2 loại Service trả về DNS rất khác nhau. Bấm "Query DNS" trên cả 2 panel để so sánh.</p>
+
+  <div class="compare">
+
+    <!-- ============= ClusterIP ============= -->
+    <div class="panel">
+      <h2>🅰️ ClusterIP Service</h2>
+      <div class="yaml">
+<span class="key">spec:</span><br>
+&nbsp;&nbsp;<span class="key">type:</span> <span class="val">ClusterIP</span><br>
+&nbsp;&nbsp;<span class="key">clusterIP:</span> <span class="val">10.96.0.10</span> <span class="comment"># IP ảo</span><br>
+&nbsp;&nbsp;<span class="key">selector:</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">app:</span> <span class="val">db</span>
+      </div>
+
+      <div style="margin-top:15px;color:#8b949e;font-size:13px;">DNS query: <code>nslookup my-db.svc</code></div>
+      <div class="dns-result" id="dns1">
+        <div class="line" id="d1l1">Server: kube-dns</div>
+        <div class="line" id="d1l2">Address: <b style="color:#ffd33d">10.96.0.10</b> (Service IP)</div>
+        <div class="line" id="d1l3" style="color:#8b949e;">→ chỉ trả về 1 IP duy nhất (Service)</div>
+      </div>
+
+      <div class="flow">
+        <div class="svc-mini" style="left: 170px; top: 10px;">⚙ Service<br>10.96.0.10</div>
+        <div class="pod-mini" style="left:30px; top:120px;">📦 Pod 1<br>10.1.1.5</div>
+        <div class="pod-mini" style="left:175px; top:120px;">📦 Pod 2<br>10.1.1.6</div>
+        <div class="pod-mini" style="left:320px; top:120px;">📦 Pod 3<br>10.1.1.7</div>
+        <div class="ball" id="ball1" style="left:5px; top:80px;"></div>
+      </div>
+      <button onclick="runClusterIP()">▶ Query DNS + gửi request</button>
+    </div>
+
+    <!-- ============= Headless ============= -->
+    <div class="panel">
+      <h2>🅱️ Headless Service</h2>
+      <div class="yaml">
+<span class="key">spec:</span><br>
+&nbsp;&nbsp;<span class="key">type:</span> <span class="val">ClusterIP</span><br>
+&nbsp;&nbsp;<span class="key">clusterIP:</span> <span class="val">None</span> <span class="comment"># ← khác biệt!</span><br>
+&nbsp;&nbsp;<span class="key">selector:</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">app:</span> <span class="val">db</span>
+      </div>
+
+      <div style="margin-top:15px;color:#8b949e;font-size:13px;">DNS query: <code>nslookup my-db.svc</code></div>
+      <div class="dns-result" id="dns2">
+        <div class="line" id="d2l1">Server: kube-dns</div>
+        <div class="line" id="d2l2">Address: <b style="color:#7ee787">10.1.1.5</b> (Pod 1)</div>
+        <div class="line" id="d2l3">Address: <b style="color:#7ee787">10.1.1.6</b> (Pod 2)</div>
+        <div class="line" id="d2l4">Address: <b style="color:#7ee787">10.1.1.7</b> (Pod 3)</div>
+        <div class="line" id="d2l5" style="color:#8b949e;">→ Trả về MỌI Pod IP — client tự chọn!</div>
+      </div>
+
+      <div class="flow">
+        <div class="pod-mini" style="left:30px; top:120px;">📦 Pod 1<br>10.1.1.5</div>
+        <div class="pod-mini" style="left:175px; top:120px;">📦 Pod 2<br>10.1.1.6</div>
+        <div class="pod-mini" style="left:320px; top:120px;">📦 Pod 3<br>10.1.1.7</div>
+        <div class="ball" id="ball2" style="left:5px; top:30px;"></div>
+      </div>
+      <button onclick="runHeadless()">▶ Query DNS + client tự chọn</button>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <b>Khi nào dùng Headless?</b> Khi client cần biết <b>từng Pod cụ thể</b> — ví dụ:
+    <ul style="margin: 8px 0;">
+      <li><b>StatefulSet</b> (Kafka, Cassandra, MongoDB replica set) — mỗi Pod có vai trò khác nhau, client phải kết nối đúng Pod.</li>
+      <li><b>Service discovery</b> tự code trong app (Spring Cloud, gRPC client-side LB).</li>
+      <li>Khi không muốn tầng load balance của Service xen vào (vd: gRPC streaming connection).</li>
+    </ul>
+  </div>
+
+<script>
+  function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+  async function runClusterIP() {
+    // reset
+    ['d1l1','d1l2','d1l3'].forEach(id => document.getElementById(id).classList.remove('show'));
+    const ball = document.getElementById('ball1');
+    ball.style.opacity = '0';
+    ball.style.left = '5px';
+    ball.style.top = '80px';
+
+    await sleep(300);
+    document.getElementById('d1l1').classList.add('show');
+    await sleep(400);
+    document.getElementById('d1l2').classList.add('show');
+    await sleep(400);
+    document.getElementById('d1l3').classList.add('show');
+
+    // Send packet to Service first, then random pod
+    await sleep(500);
+    ball.style.opacity = '1';
+    ball.style.left = '210px';
+    ball.style.top = '20px';
+
+    await sleep(1000);
+    // random pod
+    const pick = Math.floor(Math.random()*3);
+    ball.style.left = (40 + pick * 145) + 'px';
+    ball.style.top = '125px';
+    await sleep(1000);
+    ball.style.opacity = '0';
+  }
+
+  async function runHeadless() {
+    ['d2l1','d2l2','d2l3','d2l4','d2l5'].forEach(id => document.getElementById(id).classList.remove('show'));
+    const ball = document.getElementById('ball2');
+    ball.style.opacity = '0';
+    ball.style.left = '5px';
+    ball.style.top = '30px';
+
+    await sleep(300);
+    document.getElementById('d2l1').classList.add('show');
+    await sleep(300);
+    document.getElementById('d2l2').classList.add('show');
+    await sleep(300);
+    document.getElementById('d2l3').classList.add('show');
+    await sleep(300);
+    document.getElementById('d2l4').classList.add('show');
+    await sleep(300);
+    document.getElementById('d2l5').classList.add('show');
+
+    await sleep(500);
+    // Client picks 1 pod directly — no service in middle
+    const pick = Math.floor(Math.random()*3);
+    ball.style.opacity = '1';
+    ball.style.left = (40 + pick * 145) + 'px';
+    ball.style.top = '125px';
+    await sleep(1200);
+    ball.style.opacity = '0';
+  }
+</script>
+</body>
+</html>

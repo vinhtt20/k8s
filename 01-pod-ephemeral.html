@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Animation 1 — Pod IP thay đổi liên tục</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px;
+    margin: 0;
+  }
+  h1 { color: #58a6ff; }
+  p.sub { color: #8b949e; margin-bottom: 30px; }
+
+  .cluster {
+    background: #161b22;
+    border: 2px dashed #30363d;
+    border-radius: 12px;
+    padding: 30px 50px;
+    display: flex;
+    gap: 30px;
+    position: relative;
+  }
+  .cluster::before {
+    content: "K8s CLUSTER";
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    background: #0d1117;
+    padding: 0 10px;
+    color: #58a6ff;
+    font-size: 12px;
+    letter-spacing: 2px;
+  }
+
+  .pod {
+    width: 130px;
+    height: 130px;
+    background: linear-gradient(145deg, #1f6feb, #1158c7);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 20px rgba(31, 111, 235, 0.4);
+    position: relative;
+    transition: all 0.6s ease;
+  }
+  .pod.dying {
+    animation: die 1.5s ease forwards;
+  }
+  .pod.spawning {
+    animation: spawn 1.5s ease forwards;
+  }
+  @keyframes die {
+    0%   { transform: scale(1); opacity: 1; background: linear-gradient(145deg, #1f6feb, #1158c7); }
+    50%  { transform: scale(1.1) rotate(5deg); background: linear-gradient(145deg, #f85149, #b62324); }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  @keyframes spawn {
+    0%   { transform: scale(0); opacity: 0; }
+    60%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .pod .name { font-size: 18px; font-weight: bold; }
+  .pod .ip {
+    font-family: "SF Mono", monospace;
+    font-size: 13px;
+    margin-top: 8px;
+    background: rgba(0,0,0,0.3);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .pod .emoji { font-size: 32px; margin-bottom: 4px; }
+
+  .client {
+    margin-top: 50px;
+    background: #238636;
+    color: white;
+    padding: 20px 30px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 16px;
+    box-shadow: 0 4px 20px rgba(35, 134, 54, 0.4);
+  }
+  .arrow {
+    font-size: 30px;
+    color: #f85149;
+    margin: 10px 0;
+    animation: shake 0.5s infinite;
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25%     { transform: translateX(-5px); }
+    75%     { transform: translateX(5px); }
+  }
+
+  .status {
+    margin-top: 25px;
+    padding: 15px 25px;
+    border-radius: 8px;
+    background: #21262d;
+    border-left: 4px solid #f85149;
+    color: #f85149;
+    font-size: 16px;
+    min-height: 24px;
+  }
+  .status.ok {
+    border-left-color: #3fb950;
+    color: #3fb950;
+  }
+
+  button {
+    margin-top: 30px;
+    background: #1f6feb;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  button:hover { background: #388bfd; }
+</style>
+</head>
+<body>
+  <h1>🎬 Animation 1: Vấn đề — Pod IP thay đổi liên tục</h1>
+  <p class="sub">Khi Pod chết và được tạo lại, IP MỚI hoàn toàn → client không kết nối được nữa.</p>
+
+  <div class="cluster">
+    <div class="pod" id="podA">
+      <div class="emoji">📦</div>
+      <div class="name">Pod A</div>
+      <div class="ip" id="ipA">10.1.1.5</div>
+    </div>
+    <div class="pod" id="podB">
+      <div class="emoji">📦</div>
+      <div class="name">Pod B</div>
+      <div class="ip" id="ipB">10.1.1.6</div>
+    </div>
+    <div class="pod" id="podC">
+      <div class="emoji">📦</div>
+      <div class="name">Pod C</div>
+      <div class="ip" id="ipC">10.1.1.7</div>
+    </div>
+  </div>
+
+  <div class="arrow">⬇</div>
+  <div class="client">
+    👤 Client gọi <code id="targetIp" style="background:#000;padding:4px 8px;border-radius:4px;margin:0 6px;">10.1.1.6</code>
+  </div>
+
+  <div class="status" id="status">⏳ Chờ animation...</div>
+
+  <button onclick="runDemo()">▶ Chạy lại animation</button>
+
+<script>
+  function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  async function runDemo() {
+    const podB = document.getElementById('podB');
+    const ipB  = document.getElementById('ipB');
+    const status = document.getElementById('status');
+
+    // reset
+    podB.classList.remove('dying','spawning');
+    ipB.textContent = '10.1.1.6';
+    status.textContent = '✅ Client đang gọi 10.1.1.6 → kết nối OK';
+    status.classList.add('ok');
+
+    await delay(2000);
+
+    // pod B chết
+    status.textContent = '💀 Pod B bị crash!';
+    status.classList.remove('ok');
+    podB.classList.add('dying');
+    await delay(1500);
+
+    // tạo pod mới với IP khác
+    podB.classList.remove('dying');
+    ipB.textContent = '10.1.1.42';
+    podB.classList.add('spawning');
+    status.textContent = '🆕 Pod B' + "'" + ' tạo lại với IP MỚI: 10.1.1.42';
+    await delay(1500);
+
+    // client fail
+    status.textContent = '❌ Client vẫn gọi 10.1.1.6 → TIMEOUT! Connection refused.';
+    status.style.background = '#3d1a1a';
+  }
+
+  runDemo();
+</script>
+</body>
+</html>

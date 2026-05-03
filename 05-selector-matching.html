@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Animation 5 — Selector matching</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #0d1117; color: #e6edf3;
+    margin: 0; padding: 30px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { color: #58a6ff; margin-bottom: 5px; }
+  p.sub { color: #8b949e; margin-bottom: 25px; }
+
+  .stage {
+    display: flex; gap: 60px; align-items: flex-start;
+    background: #161b22;
+    padding: 30px;
+    border-radius: 12px;
+  }
+
+  .svc-card {
+    background: linear-gradient(145deg, #1f6feb, #1158c7);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    width: 240px;
+    box-shadow: 0 6px 20px rgba(31,111,235,0.4);
+  }
+  .svc-card h3 { margin: 0 0 10px 0; }
+  .selector {
+    background: rgba(0,0,0,0.3);
+    padding: 12px;
+    border-radius: 6px;
+    font-family: "SF Mono", monospace;
+    font-size: 13px;
+  }
+  .selector .key { color: #ffd33d; }
+  .selector .val { color: #7ee787; }
+
+  .pods {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  .pod {
+    background: #21262d;
+    border: 2px solid #30363d;
+    border-radius: 10px;
+    padding: 16px;
+    width: 220px;
+    transition: all 0.5s ease;
+    position: relative;
+  }
+  .pod h4 { margin: 0 0 8px 0; color: #e6edf3; }
+  .pod .label-list {
+    font-family: "SF Mono", monospace;
+    font-size: 12px;
+    color: #8b949e;
+  }
+  .pod .label-list .key { color: #79c0ff; }
+  .pod .label-list .val { color: #ffa657; }
+
+  .pod.match {
+    border-color: #3fb950;
+    background: #0d2818;
+    box-shadow: 0 0 25px rgba(63, 185, 80, 0.5);
+  }
+  .pod.match::after {
+    content: "✓ MATCH";
+    position: absolute;
+    top: -10px; right: -10px;
+    background: #3fb950;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .pod.nomatch {
+    opacity: 0.4;
+    border-color: #f85149;
+    background: #2d0a0a;
+  }
+  .pod.nomatch::after {
+    content: "✗ skip";
+    position: absolute;
+    top: -10px; right: -10px;
+    background: #f85149;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+  }
+
+  .controls { margin-top: 25px; display: flex; gap: 12px; flex-wrap: wrap; justify-content:center; max-width: 800px;}
+  button {
+    background: #1f6feb; color: white;
+    border: none; padding: 10px 18px; border-radius: 8px;
+    font-size: 14px; cursor: pointer;
+  }
+  button:hover { background: #388bfd; }
+  button.alt { background: #6e40c9; }
+  button.alt:hover { background: #8957e5; }
+
+  .info {
+    margin-top: 20px; padding: 14px 22px;
+    background: #21262d; border-radius: 8px;
+    border-left: 4px solid #58a6ff;
+    max-width: 800px; line-height: 1.7;
+  }
+  .info code { background:#0d1117; padding: 2px 6px; border-radius: 3px; font-family: "SF Mono", monospace; }
+</style>
+</head>
+<body>
+  <h1>🎬 Animation 5: Selector — cách Service tìm Pod</h1>
+  <p class="sub">Service KHÔNG biết Pod tên gì. Nó match qua <b>labels</b>. Hãy thử thay đổi selector!</p>
+
+  <div class="stage">
+    <div class="svc-card">
+      <h3>⚙ Service "backend"</h3>
+      <div style="font-size:13px; opacity:0.85; margin-bottom:8px;">selector:</div>
+      <div class="selector" id="selectorBox">
+        <span class="key">app:</span> <span class="val" id="selVal">backend</span>
+      </div>
+      <div style="margin-top:12px; font-size:12px; opacity:0.85;">→ chỉ Pod nào có ĐÚNG label này mới được Service "thấy"</div>
+    </div>
+
+    <div class="pods" id="pods">
+      <div class="pod" data-app="backend" data-tier="api">
+        <h4>📦 pod-1</h4>
+        <div class="label-list">
+          <span class="key">app:</span> <span class="val">backend</span><br>
+          <span class="key">tier:</span> <span class="val">api</span>
+        </div>
+      </div>
+      <div class="pod" data-app="backend" data-tier="worker">
+        <h4>📦 pod-2</h4>
+        <div class="label-list">
+          <span class="key">app:</span> <span class="val">backend</span><br>
+          <span class="key">tier:</span> <span class="val">worker</span>
+        </div>
+      </div>
+      <div class="pod" data-app="frontend" data-tier="ui">
+        <h4>📦 pod-3</h4>
+        <div class="label-list">
+          <span class="key">app:</span> <span class="val">frontend</span><br>
+          <span class="key">tier:</span> <span class="val">ui</span>
+        </div>
+      </div>
+      <div class="pod" data-app="database" data-tier="primary">
+        <h4>📦 pod-4</h4>
+        <div class="label-list">
+          <span class="key">app:</span> <span class="val">database</span><br>
+          <span class="key">tier:</span> <span class="val">primary</span>
+        </div>
+      </div>
+      <div class="pod" data-app="backend" data-tier="api">
+        <h4>📦 pod-5</h4>
+        <div class="label-list">
+          <span class="key">app:</span> <span class="val">backend</span><br>
+          <span class="key">tier:</span> <span class="val">api</span>
+        </div>
+      </div>
+      <div class="pod" data-app="cache" data-tier="redis">
+        <h4>📦 pod-6</h4>
+        <div class="label-list">
+          <span class="key">app:</span> <span class="val">cache</span><br>
+          <span class="key">tier:</span> <span class="val">redis</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button onclick="setSelector('backend')">selector: app=backend</button>
+    <button onclick="setSelector('frontend')">selector: app=frontend</button>
+    <button onclick="setSelector('database')">selector: app=database</button>
+    <button class="alt" onclick="setSelector('cache')">selector: app=cache</button>
+    <button class="alt" onclick="setSelector('typo-backendd')">selector: app=typo-backendd (label sai!)</button>
+  </div>
+
+  <div class="info">
+    <b id="resultText">→ Đang match: <code>app=backend</code> — tìm thấy <span id="matchCount">3</span> Pod.</b><br>
+    <small style="color:#8b949e;">💡 Đây chính là lý do <b>label rất quan trọng</b>. Sai 1 ký tự → Endpoints rỗng → không Pod nào nhận traffic → 503 errors.</small>
+  </div>
+
+<script>
+  function setSelector(value) {
+    document.getElementById('selVal').textContent = value;
+
+    const pods = document.querySelectorAll('.pod');
+    let matches = 0;
+
+    pods.forEach((pod, i) => {
+      pod.classList.remove('match','nomatch');
+      setTimeout(() => {
+        if (pod.dataset.app === value) {
+          pod.classList.add('match');
+          matches++;
+        } else {
+          pod.classList.add('nomatch');
+        }
+        document.getElementById('matchCount').textContent = countMatches(value);
+      }, 100 * i);
+    });
+
+    document.getElementById('resultText').innerHTML =
+      `→ Đang match: <code>app=${value}</code> — tìm thấy <span id="matchCount">${countMatches(value)}</span> Pod.`;
+
+    if (countMatches(value) === 0) {
+      document.getElementById('resultText').innerHTML +=
+        '<br><span style="color:#f85149">⚠ Endpoints rỗng! Service không có Pod nào để route → traffic sẽ FAIL.</span>';
+    }
+  }
+
+  function countMatches(value) {
+    return Array.from(document.querySelectorAll('.pod'))
+      .filter(p => p.dataset.app === value).length;
+  }
+
+  // initial
+  setSelector('backend');
+</script>
+</body>
+</html>

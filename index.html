@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Bài giảng K8s Service — Mục lục</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #0d1117; color: #e6edf3;
+    margin: 0; padding: 40px 20px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { color: #58a6ff; font-size: 32px; margin-bottom: 8px; }
+  .sub { color: #8b949e; margin-bottom: 35px; text-align: center; max-width: 700px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    max-width: 900px;
+    width: 100%;
+  }
+
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 24px;
+    text-decoration: none;
+    color: #e6edf3;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card:hover {
+    border-color: #58a6ff;
+    background: #1c2128;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(88, 166, 255, 0.15);
+  }
+  .card .num {
+    color: #ffd33d;
+    font-size: 13px;
+    letter-spacing: 2px;
+    font-weight: bold;
+  }
+  .card h3 { margin: 0; color: #58a6ff; font-size: 18px; }
+  .card p { margin: 0; color: #8b949e; font-size: 14px; line-height: 1.5; }
+  .card .icon { font-size: 32px; margin-bottom: 4px; }
+
+  .footer {
+    margin-top: 40px;
+    color: #8b949e;
+    font-size: 13px;
+    text-align: center;
+  }
+  .footer a { color: #58a6ff; text-decoration: none; }
+</style>
+</head>
+<body>
+  <h1>🎓 Bài giảng: Kubernetes Service</h1>
+  <p class="sub">6 animation tương tác để hiểu sâu Service trong K8s — từ vấn đề Pod ephemeral đến cách kube-proxy/iptables hoạt động bên trong kernel.</p>
+
+  <div class="grid">
+    <a class="card" href="01-pod-ephemeral.html">
+      <div class="icon">💀</div>
+      <div class="num">CHƯƠNG 1</div>
+      <h3>Vấn đề: Pod IP thay đổi</h3>
+      <p>Tại sao client KHÔNG thể gọi Pod IP trực tiếp? Xem Pod chết & hồi sinh với IP mới.</p>
+    </a>
+
+    <a class="card" href="02-service-loadbalancing.html">
+      <div class="icon">⚖</div>
+      <div class="num">CHƯƠNG 2</div>
+      <h3>Service load balancing</h3>
+      <p>Click gửi request, xem Service chia traffic round-robin đến từng Pod theo thời gian thực.</p>
+    </a>
+
+    <a class="card" href="03-service-types.html">
+      <div class="icon">🔀</div>
+      <div class="num">CHƯƠNG 3</div>
+      <h3>4 loại Service</h3>
+      <p>ClusterIP, NodePort, LoadBalancer, ExternalName — luồng traffic của từng loại minh hoạ trực quan.</p>
+    </a>
+
+    <a class="card" href="04-kube-proxy.html">
+      <div class="icon">⚙</div>
+      <div class="num">CHƯƠNG 4</div>
+      <h3>kube-proxy & iptables</h3>
+      <p>Bóc tách bên trong: cách 1 packet đi qua chain iptables và DNAT đến đúng Pod trong kernel.</p>
+    </a>
+
+    <a class="card" href="05-selector-matching.html">
+      <div class="icon">🏷</div>
+      <div class="num">CHƯƠNG 5</div>
+      <h3>Selector matching</h3>
+      <p>Đổi selector và xem Pod nào "match" / "skip". Hiểu vì sao sai 1 ký tự label = 503.</p>
+    </a>
+
+    <a class="card" href="06-headless-vs-clusterip.html">
+      <div class="icon">👤</div>
+      <div class="num">CHƯƠNG 6</div>
+      <h3>Headless vs ClusterIP</h3>
+      <p>So sánh DNS query giữa 2 loại Service. Khi nào StatefulSet cần Headless?</p>
+    </a>
+
+    <a class="card" href="07-packet-journey-deep.html" style="grid-column: span 2; background: linear-gradient(135deg, #1c2128, #0d1117); border: 2px solid #f78166;">
+      <div class="icon">🔬</div>
+      <div class="num" style="color:#f78166;">CHƯƠNG 7 — DEEP DIVE</div>
+      <h3 style="color:#f78166;">Đường đi THẬT của packet (kernel-level)</h3>
+      <p>4 scene tương tác từng bước: Pod↔Pod, qua Service, cross-node VXLAN, External NodePort kèm SNAT. Hiển thị header packet thay đổi sau mỗi DNAT/SNAT, highlight chain iptables nào "nóng" lên. Đây là level chuyên gia.</p>
+    </a>
+
+    <a class="card" href="09-service-types-detailed.html" style="grid-column: span 2; background: linear-gradient(135deg, #1158c7, #6e40c9); border: 2px solid #ffd33d;">
+      <div class="icon">🏢</div>
+      <div class="num" style="color:#ffd33d;">CHƯƠNG 9 — BÀI GIẢNG ĐẶC BIỆT</div>
+      <h3 style="color:#ffd33d;">5 loại Service: Ẩn dụ "Tòa nhà công ty" + Kỹ thuật</h3>
+      <p style="color:white;">Bài giảng song song <b>2 cột</b> — bên trái dùng ẩn dụ đời thường (số điện thoại nội bộ, concierge, danh bạ...) cho người không IT; bên phải là sơ đồ kỹ thuật + YAML. Có cây quyết định "tôi nên chọn loại nào" và bảng so sánh đầy đủ.</p>
+    </a>
+
+    <a class="card" href="10-service-comparison-animated.html" style="grid-column: span 2; background: linear-gradient(135deg, #1a4a2e, #0d1117); border: 2px solid #3fb950;">
+      <div class="icon">🏁</div>
+      <div class="num" style="color:#3fb950;">CHƯƠNG 10 — RACE COMPARISON</div>
+      <h3 style="color:#3fb950;">5 loại Service chạy SONG SONG — So sánh đường đi mạng</h3>
+      <p>Animation độc đáo: 5 loại Service được vẽ thành 5 "đường đua" song song. Bấm "Bắt đầu race" → packet bay đồng thời qua từng đường, bạn THẤY rõ ai ngắn ai dài, ai nhanh ai chậm. Kèm 4 scenario thực tế (mobile app, microservice, AWS RDS, MongoDB) để biết nên chọn loại nào.</p>
+    </a>
+  </div>
+
+  <div class="footer">
+    📖 Lý thuyết cơ bản: <a href="K8s-Service-Bai-Giang.md">K8s-Service-Bai-Giang.md</a><br>
+    🔬 Lý thuyết deep-dive (chuyên gia): <a href="08-K8s-Networking-Deep-Dive.md">08-K8s-Networking-Deep-Dive.md</a>
+  </div>
+</body>
+</html>

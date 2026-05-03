@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Animation 4 — kube-proxy & iptables</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    margin: 0; padding: 30px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { color: #58a6ff; margin-bottom: 5px; }
+  p.sub { color: #8b949e; margin-bottom: 25px; max-width: 800px; text-align: center;}
+
+  .canvas {
+    width: 940px;
+    background: #161b22;
+    border-radius: 12px;
+    padding: 25px;
+    position: relative;
+  }
+
+  .layer {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    position: relative;
+  }
+  .layer-title {
+    position: absolute; top: -10px; left: 15px;
+    background: #161b22; padding: 0 10px;
+    color: #58a6ff; font-size: 12px; letter-spacing: 1px;
+  }
+  .row { display: flex; gap: 15px; align-items: center; }
+
+  .box {
+    background: #30363d; padding: 10px 16px;
+    border-radius: 6px; font-size: 14px;
+  }
+  .api-server { background: #6e40c9; color: white; }
+  .controller { background: #1f6feb; color: white; }
+  .kube-proxy { background: #db6d28; color: white; }
+  .iptables {
+    background: #161b22;
+    border: 1px solid #f78166;
+    color: #f78166;
+    font-family: "SF Mono", monospace;
+    font-size: 12px;
+    padding: 12px;
+    line-height: 1.7;
+  }
+  .iptables .rule {
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin: 4px 0;
+    background: #0d1117;
+    transition: background 0.3s;
+  }
+  .iptables .rule.hot {
+    background: #3d2a0f;
+    border-left: 3px solid #ffd33d;
+  }
+  .pod-row { justify-content: space-around; margin-top: 10px;}
+  .pod {
+    background: #238636; color: white;
+    padding: 12px 18px; border-radius: 8px;
+    font-size: 14px; min-width: 130px; text-align:center;
+    transition: all 0.3s;
+  }
+  .pod.hit {
+    background: #3fb950; transform: scale(1.1);
+    box-shadow: 0 0 20px #3fb950;
+  }
+
+  .step {
+    background: #1c2128;
+    border-left: 4px solid #ffd33d;
+    padding: 12px 18px;
+    border-radius: 6px;
+    margin-top: 10px;
+    font-size: 14px;
+    min-height: 40px;
+  }
+
+  button {
+    margin-top: 15px;
+    background: #1f6feb; color: white;
+    border: none; padding: 12px 28px;
+    border-radius: 8px; font-size: 15px; cursor: pointer;
+  }
+  button:hover { background: #388bfd; }
+
+  .arrow-down {
+    text-align: center; color: #58a6ff;
+    font-size: 24px; margin: -5px 0;
+  }
+
+  .endpoints {
+    background: #0d1117;
+    border: 1px dashed #58a6ff;
+    border-radius: 6px;
+    padding: 10px;
+    font-family: "SF Mono", monospace;
+    font-size: 12px;
+    color: #58a6ff;
+  }
+
+  .packet-trail {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #ffd33d;
+    border-radius: 50%;
+    box-shadow: 0 0 12px #ffd33d;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.5s ease;
+  }
+</style>
+</head>
+<body>
+  <h1>🎬 Animation 4: kube-proxy & iptables hoạt động bên trong</h1>
+  <p class="sub">Service KHÔNG phải process — nó chỉ là <b>iptables rules</b> trong kernel. kube-proxy đọc Endpoints rồi viết rules. Click "Run" để xem từng bước.</p>
+
+  <div class="canvas">
+
+    <!-- Control Plane -->
+    <div class="layer">
+      <div class="layer-title">CONTROL PLANE</div>
+      <div class="row">
+        <div class="box api-server">🏛 API Server (etcd)</div>
+        <div class="arrow-down" style="margin: 0 10px;">→</div>
+        <div class="box controller">🎛 Endpoints Controller</div>
+        <div class="arrow-down" style="margin: 0 10px;">→</div>
+        <div class="endpoints" id="ep">
+          Endpoints "backend":<br>
+          → 10.1.1.5:8080<br>
+          → 10.1.1.6:8080<br>
+          → 10.1.1.7:8080
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">⬇ watch &amp; sync</div>
+
+    <!-- Worker Node -->
+    <div class="layer">
+      <div class="layer-title">WORKER NODE (kernel space)</div>
+
+      <div class="row" style="margin-bottom: 12px;">
+        <div class="box kube-proxy">⚙ kube-proxy<br><small style="opacity:0.85;">user-space daemon</small></div>
+        <div class="arrow-down" style="margin: 0 10px;">→ ghi rules</div>
+        <div class="iptables" style="flex:1;">
+          <div style="color:#8b949e;margin-bottom:6px;"># iptables NAT table (kernel)</div>
+          <div class="rule" id="r0">CHAIN KUBE-SERVICES:</div>
+          <div class="rule" id="r1">  -d 10.96.0.10/32 -p tcp --dport 80 -j KUBE-SVC-BACKEND</div>
+          <div class="rule" id="r2">CHAIN KUBE-SVC-BACKEND (probability load balance):</div>
+          <div class="rule" id="r3">  -m statistic --probability 0.333 -j DNAT → 10.1.1.5:8080</div>
+          <div class="rule" id="r4">  -m statistic --probability 0.500 -j DNAT → 10.1.1.6:8080</div>
+          <div class="rule" id="r5">  -j DNAT → 10.1.1.7:8080  <span style="color:#8b949e;"># fallback</span></div>
+        </div>
+      </div>
+
+      <div class="pod-row">
+        <div class="pod" id="pod1">📦 Pod 1<br><small>10.1.1.5</small></div>
+        <div class="pod" id="pod2">📦 Pod 2<br><small>10.1.1.6</small></div>
+        <div class="pod" id="pod3">📦 Pod 3<br><small>10.1.1.7</small></div>
+      </div>
+    </div>
+
+    <div class="step" id="stepBox">👉 Bấm <b>"Mô phỏng request"</b> để xem traffic chảy qua từng rule.</div>
+  </div>
+
+  <button onclick="simulate()">▶ Mô phỏng 1 request đến 10.96.0.10:80</button>
+
+<script>
+  function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+  async function simulate() {
+    // Reset
+    for (let i=0; i<=5; i++) {
+      const r = document.getElementById('r'+i);
+      if (r) r.classList.remove('hot');
+    }
+    document.querySelectorAll('.pod').forEach(p => p.classList.remove('hit'));
+
+    const step = document.getElementById('stepBox');
+
+    step.innerHTML = '🔵 <b>Bước 1:</b> Client gửi packet đến destination IP <code>10.96.0.10:80</code>...';
+    await sleep(1200);
+
+    step.innerHTML = '🔵 <b>Bước 2:</b> Kernel kiểm tra chain <code>KUBE-SERVICES</code>...';
+    document.getElementById('r0').classList.add('hot');
+    await sleep(1200);
+
+    step.innerHTML = '🔵 <b>Bước 3:</b> Match rule! Chuyển sang chain <code>KUBE-SVC-BACKEND</code>.';
+    document.getElementById('r1').classList.add('hot');
+    await sleep(1500);
+
+    step.innerHTML = '🟡 <b>Bước 4:</b> iptables tung "xúc xắc" — random chọn 1 trong 3 Pod (probability-based).';
+    document.getElementById('r2').classList.add('hot');
+    await sleep(1500);
+
+    // Random pick
+    const pick = Math.floor(Math.random()*3);
+    const ruleId = 'r' + (3 + pick);
+    const podId = 'pod' + (pick + 1);
+    const ip = ['10.1.1.5','10.1.1.6','10.1.1.7'][pick];
+
+    document.getElementById(ruleId).classList.add('hot');
+    step.innerHTML = `🟢 <b>Bước 5:</b> Trúng rule → kernel <b>DNAT</b> destination IP từ <code>10.96.0.10</code> → <code>${ip}</code>.`;
+    await sleep(1500);
+
+    document.getElementById(podId).classList.add('hit');
+    step.innerHTML = `✅ <b>Bước 6:</b> Packet đến <code>${ip}:8080</code> — Pod xử lý request và trả về client. <br><small style="color:#8b949e;">Toàn bộ chuyển hướng diễn ra trong KERNEL — không có proxy user-space → cực nhanh!</small>`;
+  }
+</script>
+</body>
+</html>

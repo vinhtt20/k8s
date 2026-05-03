@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Animation 7 — Đường đi thật của packet (Deep dive)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    margin: 0;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    color: #58a6ff;
+    margin: 0 0 5px 0;
+    font-size: 28px;
+  }
+  .sub {
+    color: #8b949e;
+    margin-bottom: 20px;
+    text-align: center;
+    max-width: 900px;
+    line-height: 1.5;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .tab {
+    padding: 10px 18px;
+    background: #21262d;
+    border: 2px solid #30363d;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #e6edf3;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .tab:hover { background: #30363d; }
+  .tab.active {
+    background: linear-gradient(145deg, #1f6feb, #1158c7);
+    border-color: #58a6ff;
+    color: white;
+    box-shadow: 0 4px 12px rgba(31,111,235,0.4);
+  }
+
+  /* ============ Stage ============ */
+  .stage {
+    width: 1180px;
+    height: 620px;
+    background: linear-gradient(180deg, #0d1117, #161b22);
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ============ Node container ============ */
+  .node {
+    position: absolute;
+    background: rgba(33, 38, 45, 0.6);
+    border: 2px solid #30363d;
+    border-radius: 14px;
+    padding: 0;
+  }
+  .node-label {
+    position: absolute;
+    top: -11px;
+    left: 18px;
+    background: #0d1117;
+    padding: 0 12px;
+    color: #f78166;
+    font-size: 11px;
+    letter-spacing: 2px;
+    font-weight: bold;
+  }
+
+  /* ============ Pod (network namespace) ============ */
+  .pod {
+    position: absolute;
+    background: rgba(35, 134, 54, 0.15);
+    border: 1.5px dashed #3fb950;
+    border-radius: 10px;
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .pod-label {
+    color: #3fb950;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .pod-name {
+    color: #e6edf3;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .pod-ip {
+    font-family: "SF Mono", "Menlo", monospace;
+    font-size: 10px;
+    color: #7ee787;
+    margin-top: 2px;
+  }
+  .iface {
+    background: #1c2128;
+    border: 1px solid #58a6ff;
+    color: #58a6ff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: "SF Mono", monospace;
+    font-size: 10px;
+    margin-top: 4px;
+    display: inline-block;
+  }
+
+  /* ============ Bridge (cni0) ============ */
+  .bridge {
+    position: absolute;
+    background: linear-gradient(180deg, #1c2128, #161b22);
+    border: 1.5px solid #6e40c9;
+    border-radius: 8px;
+    padding: 6px 12px;
+    color: #d2a8ff;
+    font-family: "SF Mono", monospace;
+    font-size: 11px;
+    text-align: center;
+  }
+  .bridge .bridge-name { font-weight: bold; }
+  .bridge .bridge-info { color: #8b949e; font-size: 9px; margin-top: 2px;}
+
+  /* ============ veth pair ============ */
+  .veth {
+    position: absolute;
+    background: #21262d;
+    border: 1px dashed #ffd33d;
+    color: #ffd33d;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: "SF Mono", monospace;
+    font-size: 9px;
+  }
+
+  /* ============ iptables chain visualization ============ */
+  .chain-box {
+    position: absolute;
+    background: rgba(248, 129, 102, 0.08);
+    border: 1.5px solid #f78166;
+    border-radius: 8px;
+    padding: 8px;
+    font-family: "SF Mono", monospace;
+    font-size: 10px;
+  }
+  .chain-title {
+    color: #f78166;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+  .chain-rule {
+    background: rgba(0,0,0,0.3);
+    padding: 3px 6px;
+    border-radius: 3px;
+    margin: 2px 0;
+    color: #e6edf3;
+    font-size: 9px;
+    transition: all 0.4s;
+  }
+  .chain-rule.hot {
+    background: #ffd33d;
+    color: #1a1a1a;
+    font-weight: bold;
+    box-shadow: 0 0 12px rgba(255,211,61,0.6);
+  }
+
+  /* ============ Host eth0 ============ */
+  .host-eth {
+    position: absolute;
+    background: linear-gradient(145deg, #1158c7, #0d3a8c);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 11px;
+    border: 1px solid #58a6ff;
+  }
+
+  /* ============ External / User ============ */
+  .external {
+    position: absolute;
+    background: linear-gradient(145deg, #6e40c9, #4c2889);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(110,64,201,0.4);
+  }
+
+  .lb {
+    position: absolute;
+    background: linear-gradient(145deg, #f78166, #db6d28);
+    color: #1a1a1a;
+    padding: 10px 14px;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    box-shadow: 0 4px 14px rgba(247,129,102,0.4);
+    font-size: 11px;
+  }
+
+  /* ============ Connection lines ============ */
+  .line {
+    position: absolute;
+    background: #30363d;
+  }
+  .line.h { height: 2px; }
+  .line.v { width: 2px; }
+  .line.dashed { background: repeating-linear-gradient(to right, #30363d 0 6px, transparent 6px 12px); }
+
+  /* ============ Packet ============ */
+  .packet {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffec80, #ffd33d);
+    box-shadow: 0 0 16px #ffd33d, 0 0 32px rgba(255,211,61,0.3);
+    z-index: 100;
+    transition: all 0.7s cubic-bezier(0.4, 0.0, 0.2, 1);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .packet.encap {
+    background: radial-gradient(circle, #ffb3a8, #f78166);
+    box-shadow: 0 0 16px #f78166, 0 0 32px rgba(247,129,102,0.4);
+  }
+
+  /* ============ Packet header tooltip ============ */
+  .header {
+    position: absolute;
+    background: #0d1117;
+    border: 1px solid #ffd33d;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: "SF Mono", monospace;
+    font-size: 10px;
+    z-index: 101;
+    transition: all 0.7s cubic-bezier(0.4, 0.0, 0.2, 1);
+    opacity: 0;
+    pointer-events: none;
+    min-width: 160px;
+  }
+  .header .h-line { display: flex; justify-content: space-between; gap: 8px; }
+  .header .h-key { color: #8b949e; }
+  .header .h-val { color: #ffd33d; font-weight: bold; }
+  .header .h-val.changed {
+    background: #ffd33d;
+    color: #1a1a1a;
+    padding: 0 4px;
+    border-radius: 3px;
+    animation: flash 0.6s;
+  }
+  @keyframes flash {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* ============ Step panel ============ */
+  .step-panel {
+    margin-top: 18px;
+    width: 1180px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 18px 24px;
+    min-height: 90px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  .step-num {
+    background: linear-gradient(145deg, #1f6feb, #1158c7);
+    color: white;
+    min-width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    box-shadow: 0 4px 14px rgba(31,111,235,0.4);
+  }
+  .step-content {
+    flex: 1;
+  }
+  .step-title {
+    color: #58a6ff;
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+  .step-text {
+    color: #e6edf3;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  .step-text code {
+    background: #0d1117;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "SF Mono", monospace;
+    color: #79c0ff;
+    font-size: 12px;
+  }
+
+  /* ============ Controls ============ */
+  .controls {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  button {
+    background: #1f6feb;
+    color: white;
+    border: none;
+    padding: 11px 22px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  button:hover { background: #388bfd; transform: translateY(-1px); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.alt { background: #6e40c9; }
+  button.alt:hover { background: #8957e5; }
+  button.danger { background: #da3633; }
+
+  .progress {
+    background: #21262d;
+    height: 6px;
+    width: 300px;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #58a6ff, #79c0ff);
+    width: 0%;
+    transition: width 0.4s;
+  }
+
+  /* ============ Scene visibility ============ */
+  .scene { display: none; width:100%; height:100%; position: relative;}
+  .scene.active { display: block; }
+
+  /* ============ NAT badge ============ */
+  .nat-badge {
+    position: absolute;
+    background: #ffd33d;
+    color: #1a1a1a;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: bold;
+    box-shadow: 0 0 16px rgba(255,211,61,0.6);
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 200;
+  }
+  .nat-badge.show { opacity: 1; }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: #8b949e;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px;}
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+</head>
+<body>
+  <h1>🔬 Đường đi THẬT của packet trong K8s — Deep Dive</h1>
+  <p class="sub">
+    Bài này dành cho người muốn hiểu <b>kernel-level</b>: veth pair, cni0 bridge, iptables chains thật, conntrack, VXLAN encapsulation. Đây là kiến thức level chuyên gia — hiểu phần này bạn sẽ debug được mọi vấn đề networking trong K8s.
+  </p>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#3fb950;"></span>Pod network namespace</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#6e40c9;"></span>cni0 bridge (Layer 2)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#f78166;"></span>iptables chain</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#ffd33d;"></span>Packet (data)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#58a6ff;"></span>Network interface</div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchScene('A', this)">Scene A: Pod ↔ Pod (same node)</div>
+    <div class="tab" onclick="switchScene('B', this)">Scene B: Pod → Service → Pod (same node)</div>
+    <div class="tab" onclick="switchScene('C', this)">Scene C: Pod → Service → Pod (cross-node, VXLAN)</div>
+    <div class="tab" onclick="switchScene('D', this)">Scene D: External → NodePort → Pod (SNAT)</div>
+  </div>
+
+  <div class="stage">
+
+    <!-- ================== SCENE A ================== -->
+    <div class="scene active" id="sceneA">
+      <!-- Single Node -->
+      <div class="node" style="left:60px; top:60px; width:1060px; height:500px;">
+        <div class="node-label">WORKER NODE 1 (linux kernel)</div>
+
+        <!-- Pod A -->
+        <div class="pod" style="left:30px; top:60px; width:200px; height:120px;">
+          <div class="pod-label">📦 POD A — netns</div>
+          <div class="pod-name">app-client</div>
+          <div class="pod-ip">10.244.1.5</div>
+          <div class="iface" id="A-podA-eth0">eth0</div>
+        </div>
+
+        <!-- Pod B -->
+        <div class="pod" style="left:830px; top:60px; width:200px; height:120px;">
+          <div class="pod-label">📦 POD B — netns</div>
+          <div class="pod-name">app-server</div>
+          <div class="pod-ip">10.244.1.7</div>
+          <div class="iface" id="A-podB-eth0">eth0</div>
+        </div>
+
+        <!-- veth pairs (host side) -->
+        <div class="veth" style="left:60px; top:230px;">veth-aaaa<br/><span style="color:#8b949e;">(host side)</span></div>
+        <div class="veth" style="left:870px; top:230px;">veth-bbbb<br/><span style="color:#8b949e;">(host side)</span></div>
+
+        <!-- veth lines connecting Pod eth0 to host veth -->
+        <div class="line v dashed" style="left:130px; top:180px; height:50px;"></div>
+        <div class="line v dashed" style="left:930px; top:180px; height:50px;"></div>
+
+        <!-- Bridge cni0 -->
+        <div class="bridge" style="left:430px; top:300px; width:200px;">
+          <div class="bridge-name">🔗 cni0 (Linux bridge)</div>
+          <div class="bridge-info">L2 forwarding · ARP table</div>
+        </div>
+
+        <!-- Lines from veth to bridge -->
+        <div class="line h" style="left:130px; top:340px; width:300px;"></div>
+        <div class="line h" style="left:630px; top:340px; width:300px;"></div>
+        <div class="line v" style="left:130px; top:280px; height:60px;"></div>
+        <div class="line v" style="left:930px; top:280px; height:60px;"></div>
+
+        <!-- ARP table info -->
+        <div style="position:absolute; left:430px; top:400px; width:200px; font-family:'SF Mono',monospace; font-size:9px; color:#8b949e; text-align:center;">
+          ARP: 10.244.1.5 → veth-aaaa<br>
+          ARP: 10.244.1.7 → veth-bbbb
+        </div>
+
+        <!-- Packet -->
+        <div class="packet" id="pktA"></div>
+        <div class="header" id="hdrA">
+          <div class="h-line"><span class="h-key">src:</span> <span class="h-val" id="hdrA-src">10.244.1.5</span></div>
+          <div class="h-line"><span class="h-key">dst:</span> <span class="h-val" id="hdrA-dst">10.244.1.7</span></div>
+          <div class="h-line"><span class="h-key">port:</span> <span class="h-val">8080</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================== SCENE B ================== -->
+    <div class="scene" id="sceneB">
+      <div class="node" style="left:60px; top:30px; width:1060px; height:560px;">
+        <div class="node-label">WORKER NODE 1 (linux kernel)</div>
+
+        <!-- Pod A: client -->
+        <div class="pod" style="left:25px; top:50px; width:180px; height:110px;">
+          <div class="pod-label">📦 CLIENT POD</div>
+          <div class="pod-name">frontend</div>
+          <div class="pod-ip">10.244.1.5</div>
+          <div class="iface">eth0</div>
+        </div>
+
+        <!-- Pod B: server (same node) -->
+        <div class="pod" style="left:840px; top:50px; width:180px; height:110px;">
+          <div class="pod-label">📦 BACKEND POD</div>
+          <div class="pod-name">backend-1</div>
+          <div class="pod-ip">10.244.1.8:8080</div>
+          <div class="iface">eth0</div>
+        </div>
+
+        <!-- veth -->
+        <div class="veth" style="left:55px; top:200px;">veth-cli</div>
+        <div class="veth" style="left:870px; top:200px;">veth-be1</div>
+
+        <div class="line v dashed" style="left:115px; top:160px; height:40px;"></div>
+        <div class="line v dashed" style="left:920px; top:160px; height:40px;"></div>
+
+        <!-- Bridge -->
+        <div class="bridge" style="left:485px; top:250px; width:140px;">
+          <div class="bridge-name">🔗 cni0</div>
+        </div>
+        <div class="line h" style="left:115px; top:265px; width:370px;"></div>
+        <div class="line h" style="left:625px; top:265px; width:295px;"></div>
+        <div class="line v" style="left:115px; top:240px; height:25px;"></div>
+        <div class="line v" style="left:920px; top:240px; height:25px;"></div>
+
+        <!-- iptables chain -->
+        <div class="chain-box" style="left:200px; top:330px; width:710px;">
+          <div class="chain-title">⚡ NETFILTER (iptables — table: nat)</div>
+          <div class="chain-rule" id="B-r1">PREROUTING → KUBE-SERVICES (entry chain for kube-proxy)</div>
+          <div class="chain-rule" id="B-r2">KUBE-SERVICES: -d 10.96.0.10/32 -p tcp --dport 80 → KUBE-SVC-BACKEND</div>
+          <div class="chain-rule" id="B-r3">KUBE-SVC-BACKEND: -m statistic --probability 0.333 → KUBE-SEP-POD1</div>
+          <div class="chain-rule" id="B-r4">KUBE-SVC-BACKEND: -m statistic --probability 0.500 → KUBE-SEP-POD2</div>
+          <div class="chain-rule" id="B-r5">KUBE-SVC-BACKEND: → KUBE-SEP-POD3 (fallback)</div>
+          <div class="chain-rule" id="B-r6">KUBE-SEP-POD1: -j DNAT --to-destination 10.244.1.8:8080 ⚡</div>
+        </div>
+
+        <div class="packet" id="pktB"></div>
+        <div class="header" id="hdrB">
+          <div class="h-line"><span class="h-key">src:</span> <span class="h-val" id="hdrB-src">10.244.1.5</span></div>
+          <div class="h-line"><span class="h-key">dst:</span> <span class="h-val" id="hdrB-dst">10.96.0.10:80</span></div>
+        </div>
+
+        <div class="nat-badge" id="natB">⚡ DNAT applied!</div>
+      </div>
+    </div>
+
+    <!-- ================== SCENE C: Cross-node VXLAN ================== -->
+    <div class="scene" id="sceneC">
+      <!-- Node 1 -->
+      <div class="node" style="left:30px; top:40px; width:530px; height:540px;">
+        <div class="node-label">NODE 1 — 192.168.1.10</div>
+
+        <div class="pod" style="left:20px; top:40px; width:170px; height:100px;">
+          <div class="pod-label">📦 CLIENT POD</div>
+          <div class="pod-name">frontend</div>
+          <div class="pod-ip">10.244.1.5</div>
+          <div class="iface">eth0</div>
+        </div>
+
+        <div class="bridge" style="left:50px; top:200px; width:140px;">
+          <div class="bridge-name">🔗 cni0</div>
+        </div>
+        <div class="line v dashed" style="left:105px; top:140px; height:60px;"></div>
+
+        <div class="chain-box" style="left:25px; top:265px; width:480px;">
+          <div class="chain-title">iptables nat / PREROUTING + KUBE-SERVICES</div>
+          <div class="chain-rule" id="C-r1">match 10.96.0.10:80 → KUBE-SVC-BACKEND</div>
+          <div class="chain-rule" id="C-r2">DNAT → 10.244.<b>2</b>.7:8080 (Pod ở Node 2!)</div>
+          <div class="chain-rule" id="C-r3">routing decision: 10.244.2.0/24 via flannel.1 (VXLAN)</div>
+        </div>
+
+        <!-- VXLAN device -->
+        <div style="position:absolute; left:25px; top:400px; width:230px; background:rgba(247,129,102,0.1); border:1.5px solid #f78166; border-radius:8px; padding:8px; text-align:center; font-size:11px;">
+          <b style="color:#f78166;">flannel.1 (VXLAN)</b>
+          <div style="color:#8b949e; font-size:9px;">VTEP — encapsulate</div>
+        </div>
+
+        <div class="host-eth" style="left:280px; top:400px;">
+          🔌 eth0 (host)<br/>
+          <span style="font-family:'SF Mono',monospace; font-size:10px;">192.168.1.10</span>
+        </div>
+      </div>
+
+      <!-- Physical network -->
+      <div style="position:absolute; left:580px; top:280px; width:60px; text-align:center;">
+        <div style="font-size:32px;">🌐</div>
+        <div style="color:#8b949e; font-size:10px;">L3 network</div>
+      </div>
+
+      <!-- Node 2 -->
+      <div class="node" style="left:660px; top:40px; width:500px; height:540px;">
+        <div class="node-label">NODE 2 — 192.168.1.20</div>
+
+        <div class="host-eth" style="left:30px; top:80px;">
+          🔌 eth0 (host)<br/>
+          <span style="font-family:'SF Mono',monospace; font-size:10px;">192.168.1.20</span>
+        </div>
+
+        <div style="position:absolute; left:30px; top:170px; width:230px; background:rgba(247,129,102,0.1); border:1.5px solid #f78166; border-radius:8px; padding:8px; text-align:center; font-size:11px;">
+          <b style="color:#f78166;">flannel.1 (VXLAN)</b>
+          <div style="color:#8b949e; font-size:9px;">VTEP — decapsulate</div>
+        </div>
+
+        <div class="bridge" style="left:60px; top:280px; width:140px;">
+          <div class="bridge-name">🔗 cni0</div>
+        </div>
+
+        <div class="line v dashed" style="left:115px; top:340px; height:50px;"></div>
+
+        <div class="pod" style="left:30px; top:400px; width:200px; height:110px;">
+          <div class="pod-label">📦 BACKEND POD</div>
+          <div class="pod-name">backend-3</div>
+          <div class="pod-ip">10.244.2.7:8080</div>
+          <div class="iface">eth0</div>
+        </div>
+
+        <div style="position:absolute; left:280px; top:200px; width:200px; font-family:'SF Mono',monospace; font-size:10px; color:#8b949e; line-height:1.6;">
+          📦 Outer packet:<br/>
+          src: 192.168.1.10<br/>
+          dst: 192.168.1.20<br/>
+          UDP port 8472 (VXLAN)<br/>
+          --- payload ---<br/>
+          📦 Inner packet:<br/>
+          src: 10.244.1.5<br/>
+          dst: 10.244.2.7
+        </div>
+      </div>
+
+      <div class="packet" id="pktC"></div>
+      <div class="header" id="hdrC">
+        <div class="h-line"><span class="h-key">src:</span> <span class="h-val" id="hdrC-src">10.244.1.5</span></div>
+        <div class="h-line"><span class="h-key">dst:</span> <span class="h-val" id="hdrC-dst">10.96.0.10</span></div>
+      </div>
+    </div>
+
+    <!-- ================== SCENE D: NodePort + SNAT ================== -->
+    <div class="scene" id="sceneD">
+      <div class="external" style="left:30px; top:60px; width:160px;">
+        🌐 External User<br/>
+        <span style="font-family:'SF Mono',monospace; font-size:10px;">203.0.113.50</span>
+      </div>
+
+      <div class="lb" style="left:30px; top:240px; width:160px;">
+        ☁ Cloud LB<br/>
+        <span style="font-family:'SF Mono',monospace; font-size:10px;">54.10.1.5 (public)</span>
+      </div>
+
+      <div class="node" style="left:240px; top:30px; width:870px; height:560px;">
+        <div class="node-label">NODE 1 — 192.168.1.10</div>
+
+        <div class="host-eth" style="left:25px; top:60px;">
+          🔌 eth0 (host)<br/>
+          <span style="font-family:'SF Mono',monospace; font-size:10px;">192.168.1.10:30080</span>
+        </div>
+
+        <div class="chain-box" style="left:25px; top:160px; width:820px;">
+          <div class="chain-title">⚡ iptables (table: nat)</div>
+          <div class="chain-rule" id="D-r1">PREROUTING → KUBE-SERVICES → KUBE-NODEPORTS (vì dst là local IP + nodePort)</div>
+          <div class="chain-rule" id="D-r2">KUBE-NODEPORTS: -p tcp --dport 30080 → KUBE-EXT-WEB → KUBE-MARK-MASQ + KUBE-SVC-WEB</div>
+          <div class="chain-rule" id="D-r3">KUBE-MARK-MASQ: đánh dấu packet (mark 0x4000) → POSTROUTING sẽ SNAT</div>
+          <div class="chain-rule" id="D-r4">KUBE-SVC-WEB → KUBE-SEP-X → DNAT → 10.244.1.8:8080</div>
+          <div class="chain-rule" id="D-r5">POSTROUTING: -m mark 0x4000 → MASQUERADE (SNAT về IP của Node)</div>
+        </div>
+
+        <div class="bridge" style="left:340px; top:340px; width:140px;">
+          <div class="bridge-name">🔗 cni0</div>
+        </div>
+        <div class="line v" style="left:395px; top:380px; height:30px;"></div>
+
+        <div class="pod" style="left:300px; top:420px; width:220px; height:110px;">
+          <div class="pod-label">📦 BACKEND POD</div>
+          <div class="pod-name">backend-1</div>
+          <div class="pod-ip">10.244.1.8:8080</div>
+          <div class="iface">eth0</div>
+        </div>
+
+        <div style="position:absolute; left:580px; top:420px; width:240px; background:#0d1117; border:1px dashed #ffd33d; border-radius:6px; padding:10px; font-family:'SF Mono',monospace; font-size:10px; color:#e6edf3; line-height:1.5;">
+          <div style="color:#ffd33d;font-weight:bold;">📌 Vì sao cần SNAT (MASQUERADE)?</div>
+          <div style="margin-top:4px;color:#8b949e;">
+          Nếu KHÔNG SNAT, Pod sẽ thấy src=203.0.113.50 và phản hồi trực tiếp về User → bypass LB → response timeout vì client mong nhận từ LB.
+          </div>
+        </div>
+      </div>
+
+      <div class="packet" id="pktD"></div>
+      <div class="header" id="hdrD">
+        <div class="h-line"><span class="h-key">src:</span> <span class="h-val" id="hdrD-src">203.0.113.50</span></div>
+        <div class="h-line"><span class="h-key">dst:</span> <span class="h-val" id="hdrD-dst">54.10.1.5:80</span></div>
+      </div>
+
+      <div class="nat-badge" id="natD">⚡ DNAT + SNAT</div>
+    </div>
+
+  </div>
+
+  <div class="step-panel">
+    <div class="step-num" id="stepNum">0</div>
+    <div class="step-content">
+      <div class="step-title" id="stepTitle">Sẵn sàng — chọn scene và bấm "▶ Bắt đầu"</div>
+      <div class="step-text" id="stepText">Mỗi scene mô tả 1 luồng packet thực tế trong K8s, từng bước qua các thành phần kernel: Pod netns → veth → bridge → iptables → routing → ...</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="btnPlay" onclick="play()">▶ Bắt đầu</button>
+    <button id="btnNext" onclick="nextStep()" disabled>⏭ Bước tiếp</button>
+    <button id="btnReset" onclick="resetScene()" class="alt">🔄 Reset</button>
+    <div class="progress"><div class="progress-bar" id="progress"></div></div>
+    <span id="progressText" style="color:#8b949e; font-size:13px;">0 / 0</span>
+  </div>
+
+<script>
+  let currentScene = 'A';
+  let currentStep = 0;
+  let isAuto = false;
+
+  // ==================== STEPS DEFINITION ====================
+  const scenes = {
+    A: {
+      title: 'Pod-to-Pod cùng node (không qua Service)',
+      steps: [
+        {
+          title: 'Khởi đầu — Pod A gọi 10.244.1.7 trực tiếp',
+          text: 'App trong Pod A gọi <code>curl 10.244.1.7:8080</code>. Packet ra interface <code>eth0</code> của Pod A (trong network namespace riêng). Header: src=10.244.1.5, dst=10.244.1.7.',
+          packet: { from: 'A-podA-eth0', to: 'A-podA-eth0', show: true },
+          packetPos: { left: 200, top: 130 },
+          headerPos: { left: 280, top: 75 },
+          dnat: false
+        },
+        {
+          title: 'veth pair: kernel teleport packet sang host netns',
+          text: '<code>eth0</code> của Pod thực ra là 1 đầu của <b>veth pair</b>. Đầu kia (<code>veth-aaaa</code>) nằm ở host network namespace. Kernel chuyển packet sang đầu host — giống như "teleport" qua khe hở giữa 2 namespace.',
+          packetPos: { left: 200, top: 290 },
+          headerPos: { left: 280, top: 250 }
+        },
+        {
+          title: 'cni0 bridge: Layer-2 forwarding',
+          text: '<code>veth-aaaa</code> được gắn vào bridge <code>cni0</code> (Linux bridge — phần mềm switch L2). Bridge nhìn ARP table: dst MAC ↔ port. Nó biết 10.244.1.7 nằm sau <code>veth-bbbb</code> → forward.',
+          packetPos: { left: 555, top: 360 },
+          headerPos: { left: 615, top: 320 }
+        },
+        {
+          title: 'Sang veth của Pod B',
+          text: 'Bridge gửi packet ra <code>veth-bbbb</code>. Đầu kia của veth pair này nằm trong netns của Pod B với tên <code>eth0</code>.',
+          packetPos: { left: 1000, top: 290 },
+          headerPos: { left: 720, top: 250 }
+        },
+        {
+          title: 'Đến đích!',
+          text: 'Packet xuất hiện ở <code>eth0</code> của Pod B. Kernel trong netns của Pod B nhận packet, gửi lên app đang lắng nghe port 8080. <b>KHÔNG có iptables KUBE-* nào can thiệp</b> vì đây là Pod-to-Pod trực tiếp, không qua Service.',
+          packetPos: { left: 1000, top: 130 },
+          headerPos: { left: 720, top: 75 }
+        }
+      ]
+    },
+    B: {
+      title: 'Pod → ClusterIP Service → Pod (cùng node)',
+      steps: [
+        {
+          title: 'Pod gọi Service ClusterIP',
+          text: 'App gọi <code>http://backend-svc</code>. CoreDNS resolve thành <code>10.96.0.10</code>. Packet rời Pod với dst=<b>10.96.0.10:80</b> (IP ảo — không tồn tại trên interface nào!).',
+          packetPos: { left: 220, top: 130 },
+          headerPos: { left: 290, top: 75 },
+          srcVal: '10.244.1.5', dstVal: '10.96.0.10:80'
+        },
+        {
+          title: 'Qua veth → cni0 → host stack',
+          text: 'Packet đi qua veth pair, vào bridge <code>cni0</code>. Module <code>br_netfilter</code> bật cờ <code>bridge-nf-call-iptables=1</code> → bridge gọi <b>netfilter hook PREROUTING</b> trước khi forward.',
+          packetPos: { left: 560, top: 290 },
+          headerPos: { left: 620, top: 250 }
+        },
+        {
+          title: 'iptables PREROUTING → KUBE-SERVICES',
+          text: 'Trong table <code>nat</code>, chain <code>PREROUTING</code> jump sang <code>KUBE-SERVICES</code> — chain do kube-proxy quản lý.',
+          highlightRule: 'B-r1'
+        },
+        {
+          title: 'Match Service IP → KUBE-SVC-BACKEND',
+          text: 'Rule match <code>-d 10.96.0.10 --dport 80</code> → jump sang chain riêng của Service: <code>KUBE-SVC-BACKEND</code>.',
+          highlightRule: 'B-r2'
+        },
+        {
+          title: 'Random load balancing với probability',
+          text: 'iptables dùng <code>-m statistic --probability</code> để load balance ngẫu nhiên. Pod 1: 33.3%, sau đó còn 2 pod thì 50%, rồi 1 pod = fallback. Đây là cách iptables mode đạt được round-robin xấp xỉ.',
+          highlightRule: 'B-r3'
+        },
+        {
+          title: 'KUBE-SEP-POD1 thực hiện DNAT',
+          text: 'Chain <code>KUBE-SEP-POD1</code> chạy lệnh <code>DNAT --to-destination 10.244.1.8:8080</code>. Kernel <b>thay dst trong header</b>: từ 10.96.0.10:80 → 10.244.1.8:8080. <b>Đồng thời ghi vào conntrack</b> để response biết NAT ngược về 10.96.0.10.',
+          highlightRule: 'B-r6',
+          showNat: true,
+          newDst: '10.244.1.8:8080',
+          packetPos: { left: 560, top: 290 },
+          headerPos: { left: 620, top: 250 }
+        },
+        {
+          title: 'Routing decision: dst là local Pod',
+          text: 'Sau DNAT, kernel kiểm tra routing table: <code>10.244.1.0/24 dev cni0</code> → packet được forward LẠI vào bridge cni0. Vì Pod đích cùng node, packet đi qua <code>veth-be1</code> đến Pod B.',
+          packetPos: { left: 1000, top: 290 },
+          headerPos: { left: 720, top: 250 }
+        },
+        {
+          title: 'Packet đến Pod B',
+          text: 'Pod B nhận packet với dst=<b>10.244.1.8:8080</b>. App xử lý request. Khi response đi ngược lại, conntrack tự động <b>un-DNAT</b>: src của response sẽ được sửa từ 10.244.1.8 → 10.96.0.10 để client thấy đúng IP Service.',
+          packetPos: { left: 1000, top: 130 },
+          headerPos: { left: 720, top: 75 }
+        }
+      ]
+    },
+    C: {
+      title: 'Cross-node Service traffic — VXLAN encapsulation',
+      steps: [
+        {
+          title: 'Pod gọi Service — same as scene B đến bước DNAT',
+          text: 'Pod ở Node 1 gọi <code>10.96.0.10:80</code>. iptables match KUBE-SVC-BACKEND, nhưng lần này load balancer pick Pod ở <b>Node 2</b>: <code>10.244.2.7</code>.',
+          packetPos: { left: 100, top: 110 },
+          headerPos: { left: 200, top: 60 },
+          srcVal: '10.244.1.5', dstVal: '10.96.0.10'
+        },
+        {
+          title: 'DNAT đến Pod IP ở node khác',
+          text: 'iptables DNAT đổi dst thành <code>10.244.2.7:8080</code>. Bây giờ kernel hỏi: "10.244.2.7 đi đâu?"',
+          highlightRule: 'C-r2',
+          showNat: true,
+          newDst: '10.244.2.7'
+        },
+        {
+          title: 'Routing: dst nằm ở Node khác → đi qua VXLAN device',
+          text: 'Routing table có entry: <code>10.244.2.0/24 via flannel.1</code>. Đây là <b>VXLAN tunnel device</b> do CNI plugin (Flannel) tạo. Packet đi vào flannel.1.',
+          highlightRule: 'C-r3',
+          packetPos: { left: 145, top: 415 },
+          headerPos: { left: 245, top: 415 }
+        },
+        {
+          title: 'VTEP encapsulate — bọc packet trong UDP',
+          text: 'flannel.1 là VTEP (VXLAN Tunnel Endpoint). Nó <b>bọc</b> packet gốc vào trong 1 UDP packet mới (port 8472). <b>Outer header</b>: src=192.168.1.10 (host IP của Node 1), dst=192.168.1.20 (host IP của Node 2). Inner header giữ nguyên 10.244.x.x.',
+          packetPos: { left: 380, top: 415 },
+          headerPos: { left: 350, top: 460 },
+          encap: true,
+          srcVal: 'NODE1: 192.168.1.10',
+          dstVal: 'NODE2: 192.168.1.20',
+        },
+        {
+          title: 'Đi qua mạng vật lý',
+          text: 'Outer packet đi qua eth0 của host, ra mạng vật lý (router/switch). Network underlay <b>không cần biết</b> về Pod IP — nó chỉ thấy 2 Node nói chuyện UDP với nhau.',
+          packetPos: { left: 600, top: 290 },
+          headerPos: { left: 580, top: 340 }
+        },
+        {
+          title: 'Node 2 nhận, decapsulate',
+          text: 'Node 2 nhận UDP packet ở port 8472 → flannel.1 ở Node 2 <b>tháo bọc</b> (decapsulate), lấy ra inner packet gốc.',
+          packetPos: { left: 770, top: 200 },
+          headerPos: { left: 870, top: 200 },
+          encap: false,
+          srcVal: '10.244.1.5', dstVal: '10.244.2.7'
+        },
+        {
+          title: 'Routing nội bộ Node 2 → cni0 → Pod',
+          text: 'Inner packet được routing nội bộ trong Node 2: <code>10.244.2.0/24 dev cni0</code> → bridge → veth → Pod đích.',
+          packetPos: { left: 760, top: 320 },
+          headerPos: { left: 860, top: 320 }
+        },
+        {
+          title: 'Đến Pod backend-3',
+          text: 'Pod 10.244.2.7 nhận packet. Mọi tầng overlay đều "vô hình" với app — app chỉ thấy 1 packet bình thường.',
+          packetPos: { left: 760, top: 450 },
+          headerPos: { left: 860, top: 450 }
+        }
+      ]
+    },
+    D: {
+      title: 'External traffic → NodePort → Pod (kèm SNAT)',
+      steps: [
+        {
+          title: 'User gửi request đến Cloud LB',
+          text: 'User <code>203.0.113.50</code> gọi <code>http://my-app.com</code> → DNS resolve thành IP của Cloud LB (54.10.1.5).',
+          packetPos: { left: 110, top: 105 },
+          headerPos: { left: 210, top: 70 },
+          srcVal: '203.0.113.50', dstVal: '54.10.1.5:80'
+        },
+        {
+          title: 'Cloud LB chuyển traffic vào Node:NodePort',
+          text: 'LB pick 1 Node → forward đến <code>192.168.1.10:30080</code>. Header lúc này: src=203.0.113.50 (vẫn IP user gốc nếu LB ở chế độ pass-through), dst=192.168.1.10:30080.',
+          packetPos: { left: 280, top: 290 },
+          headerPos: { left: 200, top: 330 },
+          srcVal: '203.0.113.50', dstVal: '192.168.1.10:30080'
+        },
+        {
+          title: 'eth0 của Node nhận → vào iptables PREROUTING',
+          text: 'Packet đến eth0 host. Kernel chạy chain PREROUTING → KUBE-SERVICES → vì dst là local IP + dport=30080 → match KUBE-NODEPORTS.',
+          highlightRule: 'D-r1',
+          packetPos: { left: 360, top: 110 },
+          headerPos: { left: 470, top: 70 }
+        },
+        {
+          title: 'KUBE-NODEPORTS → KUBE-EXT-WEB → KUBE-MARK-MASQ',
+          text: 'NodePort traffic đi qua <code>KUBE-EXT-*</code> chain. Chain này <b>luôn jump sang KUBE-MARK-MASQ trước</b> để đánh dấu packet (gắn nftables mark <code>0x4000</code>) — đây là tín hiệu để POSTROUTING sau này biết phải SNAT.',
+          highlightRule: 'D-r2'
+        },
+        {
+          title: 'Đánh dấu mark = 0x4000',
+          text: 'KUBE-MARK-MASQ chỉ làm 1 việc: <code>-j MARK --set-xmark 0x4000/0x4000</code>. Packet được "tag" trong bộ nhớ kernel (không phải sửa packet). Mark này chỉ tồn tại trong stack networking nội bộ.',
+          highlightRule: 'D-r3'
+        },
+        {
+          title: 'KUBE-SVC-WEB → DNAT đến Pod IP',
+          text: 'Sau khi mark, jump sang KUBE-SVC-WEB → KUBE-SEP-X → DNAT đổi dst thành <code>10.244.1.8:8080</code> (Pod IP).',
+          highlightRule: 'D-r4',
+          showNat: true,
+          natText: '⚡ DNAT',
+          newDst: '10.244.1.8:8080'
+        },
+        {
+          title: 'Routing → cni0 → veth Pod. NHƯNG TRƯỚC ĐÓ: POSTROUTING!',
+          text: 'Trước khi packet thực sự ra interface đích, kernel chạy chain POSTROUTING. Match mark 0x4000 → <code>MASQUERADE</code> → src bị thay từ 203.0.113.50 thành <b>IP của Node (192.168.1.10)</b>. Đây chính là <b>SNAT</b>.',
+          highlightRule: 'D-r5',
+          showNat: true,
+          natText: '⚡ DNAT + SNAT',
+          newSrc: '192.168.1.10',
+          newDst: '10.244.1.8:8080',
+          packetPos: { left: 460, top: 380 },
+          headerPos: { left: 540, top: 360 }
+        },
+        {
+          title: 'Pod nhận packet với src = Node IP',
+          text: 'Pod thấy src=192.168.1.10 (IP của Node), KHÔNG phải IP user thật. Khi response, Pod gửi về Node IP → kernel un-NAT 2 chiều (SNAT + DNAT) → trả về client.',
+          packetPos: { left: 410, top: 470 },
+          headerPos: { left: 540, top: 460 }
+        },
+        {
+          title: 'Tại sao MẤT IP gốc của user?',
+          text: 'Đây là <b>tradeoff</b> của NodePort/LoadBalancer mặc định. Để giữ IP gốc, set <code>externalTrafficPolicy: Local</code> — chỉ route đến Pod cùng Node, bỏ SNAT. Nhưng nếu Node không có Pod sẽ drop traffic.',
+        }
+      ]
+    }
+  };
+
+  // ==================== ENGINE ====================
+  function switchScene(name, btn) {
+    currentScene = name;
+    currentStep = 0;
+    isAuto = false;
+    document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+    document.getElementById('scene' + name).classList.add('active');
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    resetScene();
+  }
+
+  function resetScene() {
+    currentStep = 0;
+    isAuto = false;
+    document.getElementById('btnPlay').disabled = false;
+    document.getElementById('btnNext').disabled = true;
+
+    // Hide all packets and headers
+    ['pktA','pktB','pktC','pktD','hdrA','hdrB','hdrC','hdrD'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.opacity = '0';
+    });
+    // Reset chain rules
+    document.querySelectorAll('.chain-rule').forEach(r => r.classList.remove('hot'));
+    // Hide NAT badges
+    ['natB','natD'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('show');
+    });
+    // Reset header values
+    resetHeaders();
+    updateProgress();
+    document.getElementById('stepNum').textContent = '0';
+    document.getElementById('stepTitle').textContent = scenes[currentScene].title;
+    document.getElementById('stepText').innerHTML = 'Bấm <b>"▶ Bắt đầu"</b> để chạy từng bước. Bấm <b>"⏭ Bước tiếp"</b> để qua bước kế. Mọi thay đổi header (DNAT/SNAT) sẽ được highlight.';
+  }
+
+  function resetHeaders() {
+    const map = {
+      A: { src: '10.244.1.5', dst: '10.244.1.7' },
+      B: { src: '10.244.1.5', dst: '10.96.0.10:80' },
+      C: { src: '10.244.1.5', dst: '10.96.0.10' },
+      D: { src: '203.0.113.50', dst: '54.10.1.5:80' }
+    };
+    const s = currentScene;
+    const srcEl = document.getElementById('hdr'+s+'-src');
+    const dstEl = document.getElementById('hdr'+s+'-dst');
+    if (srcEl) srcEl.textContent = map[s].src;
+    if (dstEl) dstEl.textContent = map[s].dst;
+    if (srcEl) srcEl.classList.remove('changed');
+    if (dstEl) dstEl.classList.remove('changed');
+  }
+
+  function play() {
+    if (currentStep === 0) {
+      // First time
+      document.getElementById('btnPlay').textContent = '▶ Bắt đầu';
+      document.getElementById('btnNext').disabled = false;
+    }
+    nextStep();
+  }
+
+  function nextStep() {
+    const sc = scenes[currentScene];
+    if (currentStep >= sc.steps.length) {
+      document.getElementById('btnNext').disabled = true;
+      return;
+    }
+
+    const step = sc.steps[currentStep];
+
+    // Update step display
+    document.getElementById('stepNum').textContent = currentStep + 1;
+    document.getElementById('stepTitle').textContent = step.title;
+    document.getElementById('stepText').innerHTML = step.text;
+
+    // Update packet position
+    const pktId = 'pkt' + currentScene;
+    const hdrId = 'hdr' + currentScene;
+    const pkt = document.getElementById(pktId);
+    const hdr = document.getElementById(hdrId);
+
+    if (pkt && step.packetPos) {
+      pkt.style.opacity = '1';
+      pkt.style.left = step.packetPos.left + 'px';
+      pkt.style.top = step.packetPos.top + 'px';
+      pkt.classList.toggle('encap', !!step.encap);
+    }
+    if (hdr && step.headerPos) {
+      hdr.style.opacity = '1';
+      hdr.style.left = step.headerPos.left + 'px';
+      hdr.style.top = step.headerPos.top + 'px';
+    }
+
+    // Update header values
+    if (step.srcVal) {
+      const el = document.getElementById(hdrId + '-src');
+      if (el) {
+        el.textContent = step.srcVal;
+        el.classList.add('changed');
+        setTimeout(() => el.classList.remove('changed'), 800);
+      }
+    }
+    if (step.dstVal) {
+      const el = document.getElementById(hdrId + '-dst');
+      if (el) {
+        el.textContent = step.dstVal;
+        el.classList.add('changed');
+        setTimeout(() => el.classList.remove('changed'), 800);
+      }
+    }
+    if (step.newDst) {
+      const el = document.getElementById(hdrId + '-dst');
+      if (el) {
+        el.textContent = step.newDst;
+        el.classList.add('changed');
+        setTimeout(() => el.classList.remove('changed'), 800);
+      }
+    }
+    if (step.newSrc) {
+      const el = document.getElementById(hdrId + '-src');
+      if (el) {
+        el.textContent = step.newSrc;
+        el.classList.add('changed');
+        setTimeout(() => el.classList.remove('changed'), 800);
+      }
+    }
+
+    // Highlight chain rule
+    if (step.highlightRule) {
+      document.getElementById(step.highlightRule).classList.add('hot');
+    }
+
+    // Show NAT badge
+    if (step.showNat) {
+      const natId = 'nat' + currentScene;
+      const natEl = document.getElementById(natId);
+      if (natEl) {
+        if (step.natText) natEl.textContent = step.natText;
+        natEl.classList.add('show');
+        // Position near packet
+        if (step.packetPos) {
+          natEl.style.left = (step.packetPos.left + 30) + 'px';
+          natEl.style.top = (step.packetPos.top - 30) + 'px';
+        }
+        setTimeout(() => natEl.classList.remove('show'), 2500);
+      }
+    }
+
+    currentStep++;
+    updateProgress();
+
+    if (currentStep >= sc.steps.length) {
+      document.getElementById('btnNext').disabled = true;
+    }
+  }
+
+  function updateProgress() {
+    const total = scenes[currentScene].steps.length;
+    const pct = (currentStep / total) * 100;
+    document.getElementById('progress').style.width = pct + '%';
+    document.getElementById('progressText').textContent = currentStep + ' / ' + total;
+  }
+
+  // init
+  resetScene();
+</script>
+</body>
+</html>

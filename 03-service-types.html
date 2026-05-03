@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Animation 3 — 4 loại Service</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    margin: 0;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 { color: #58a6ff; margin-bottom: 5px; }
+  p.sub { color: #8b949e; margin-bottom: 25px; }
+
+  .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+  .tab {
+    padding: 12px 22px; background: #21262d;
+    border: 2px solid #30363d; border-radius: 10px;
+    cursor: pointer; font-size: 15px; color: #e6edf3;
+    transition: all 0.2s;
+  }
+  .tab:hover { background: #30363d; }
+  .tab.active { background: #1f6feb; border-color: #58a6ff; }
+
+  .scene {
+    width: 900px; height: 500px;
+    background: #161b22; border-radius: 12px;
+    position: relative; overflow: hidden;
+  }
+  .scene.hidden { display: none; }
+
+  .box {
+    position: absolute;
+    border-radius: 10px;
+    padding: 12px 16px;
+    text-align: center;
+    font-size: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .internet { background:#6e40c9; color:white; }
+  .cluster-border {
+    position: absolute;
+    border: 2px dashed #30363d;
+    border-radius: 12px;
+    padding: 0;
+  }
+  .cluster-label {
+    position: absolute;
+    background: #161b22;
+    color: #58a6ff;
+    font-size: 11px;
+    padding: 0 8px;
+    letter-spacing: 1px;
+  }
+  .node { background: #21262d; color:#e6edf3; border: 1px solid #30363d; }
+  .svc { background: #1f6feb; color: white; }
+  .pod { background: #238636; color: white; font-size: 12px; }
+  .lb { background: #f78166; color: #1a1a1a; font-weight:bold;}
+  .ext { background: #db6d28; color: white; }
+  .blocked {
+    background: #3d1a1a;
+    color:#f85149;
+    border: 1px dashed #f85149;
+  }
+
+  .arrow {
+    position: absolute;
+    height: 2px; background: #58a6ff;
+    transform-origin: left center;
+  }
+  .arrow::after {
+    content: ''; position: absolute; right: -1px; top: -4px;
+    border-left: 8px solid #58a6ff;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+
+  .packet {
+    position: absolute;
+    width: 16px; height: 16px;
+    background: #ffd33d;
+    border-radius: 50%;
+    box-shadow: 0 0 12px #ffd33d;
+  }
+
+  .description {
+    margin-top: 18px;
+    background: #21262d;
+    border-left: 4px solid #58a6ff;
+    padding: 14px 20px;
+    border-radius: 6px;
+    width: 860px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .description code {
+    background:#0d1117; padding: 2px 6px; border-radius: 3px;
+    font-family: "SF Mono", monospace;
+  }
+
+  /* anim packet flying */
+  @keyframes flyClusterIP {
+    0%   { left: 380px; top: 100px; opacity: 1; }
+    50%  { left: 430px; top: 220px; }
+    100% { left: 280px; top: 380px; opacity: 0; }
+  }
+  @keyframes flyNodePort {
+    0%   { left: 50px;  top: 30px;  opacity: 1; }
+    25%  { left: 200px; top: 130px; }
+    50%  { left: 430px; top: 230px; }
+    100% { left: 280px; top: 380px; opacity: 0; }
+  }
+  @keyframes flyLB {
+    0%   { left: 380px; top: 30px; opacity: 1; }
+    25%  { left: 430px; top: 110px; }
+    50%  { left: 430px; top: 230px; }
+    100% { left: 280px; top: 380px; opacity: 0; }
+  }
+  @keyframes flyEXT {
+    0%   { left: 280px; top: 380px; opacity: 1; }
+    50%  { left: 430px; top: 230px; }
+    100% { left: 750px; top: 100px; opacity: 0; }
+  }
+  @keyframes flyBlocked {
+    0%   { left: 50px; top: 30px; opacity: 1; }
+    60%  { left: 200px; top: 130px; opacity: 1; }
+    100% { left: 200px; top: 130px; opacity: 0; transform: scale(2); }
+  }
+
+  .play-btn {
+    position: absolute; bottom: 15px; right: 15px;
+    background: #1f6feb; color: white; border: none;
+    padding: 10px 20px; border-radius: 8px; cursor: pointer;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <h1>🎬 Animation 3: 4 loại Service trong Kubernetes</h1>
+  <p class="sub">Click vào từng tab để xem cách traffic chảy với từng loại.</p>
+
+  <div class="tabs">
+    <div class="tab active" onclick="show('clusterip', this)">1. ClusterIP</div>
+    <div class="tab" onclick="show('nodeport', this)">2. NodePort</div>
+    <div class="tab" onclick="show('loadbalancer', this)">3. LoadBalancer</div>
+    <div class="tab" onclick="show('externalname', this)">4. ExternalName</div>
+  </div>
+
+  <!-- ============ ClusterIP ============ -->
+  <div class="scene" id="clusterip">
+    <div class="box internet" style="left:50px;top:30px;">🌐 Internet User</div>
+    <div class="box blocked" style="left:50px;top:90px;width:200px;">❌ KHÔNG vào được</div>
+
+    <div class="cluster-border" style="left:300px;top:20px;width:580px;height:460px;"></div>
+    <div class="cluster-label" style="left:320px;top:10px;">K8s CLUSTER</div>
+
+    <div class="box pod" style="left:340px;top:80px;width:120px;">🖥 Frontend Pod<br><small>10.1.2.5</small></div>
+
+    <div class="box svc" style="left:380px;top:200px;width:200px;">⚙ ClusterIP Service<br><small>10.96.0.10:80</small></div>
+
+    <div class="box pod" style="left:340px;top:380px;width:100px;">📦 Pod 1</div>
+    <div class="box pod" style="left:460px;top:380px;width:100px;">📦 Pod 2</div>
+    <div class="box pod" style="left:580px;top:380px;width:100px;">📦 Pod 3</div>
+
+    <div class="packet" id="pktCIP" style="left:380px;top:100px;animation:flyClusterIP 2.5s ease-in-out infinite;"></div>
+
+    <button class="play-btn" onclick="restart('pktCIP','flyClusterIP')">▶ Replay</button>
+  </div>
+
+  <!-- ============ NodePort ============ -->
+  <div class="scene hidden" id="nodeport">
+    <div class="box internet" style="left:50px;top:30px;">🌐 User<br><small>NodeIP:30080</small></div>
+
+    <div class="cluster-border" style="left:300px;top:20px;width:580px;height:460px;"></div>
+    <div class="cluster-label" style="left:320px;top:10px;">K8s CLUSTER</div>
+
+    <div class="box node" style="left:340px;top:80px;width:140px;">🖥 Node 1<br><small>:30080 OPEN</small></div>
+    <div class="box node" style="left:500px;top:80px;width:140px;">🖥 Node 2<br><small>:30080 OPEN</small></div>
+    <div class="box node" style="left:660px;top:80px;width:140px;">🖥 Node 3<br><small>:30080 OPEN</small></div>
+
+    <div class="box svc" style="left:380px;top:220px;width:200px;">⚙ Service<br><small>port → NodePort</small></div>
+
+    <div class="box pod" style="left:340px;top:380px;width:100px;">📦 Pod 1</div>
+    <div class="box pod" style="left:460px;top:380px;width:100px;">📦 Pod 2</div>
+    <div class="box pod" style="left:580px;top:380px;width:100px;">📦 Pod 3</div>
+
+    <div class="packet" id="pktNP" style="animation:flyNodePort 3s ease-in-out infinite;"></div>
+
+    <button class="play-btn" onclick="restart('pktNP','flyNodePort')">▶ Replay</button>
+  </div>
+
+  <!-- ============ LoadBalancer ============ -->
+  <div class="scene hidden" id="loadbalancer">
+    <div class="box internet" style="left:380px;top:20px;width:200px;">🌐 Internet User<br><small>my-app.com</small></div>
+
+    <div class="box lb" style="left:380px;top:100px;width:200px;">☁ Cloud Load Balancer<br><small>54.200.10.5 (public)</small></div>
+
+    <div class="cluster-border" style="left:200px;top:200px;width:580px;height:280px;"></div>
+    <div class="cluster-label" style="left:220px;top:190px;">K8s CLUSTER</div>
+
+    <div class="box svc" style="left:380px;top:220px;width:200px;">⚙ Service<br><small>type: LoadBalancer</small></div>
+
+    <div class="box pod" style="left:240px;top:380px;width:100px;">📦 Pod 1</div>
+    <div class="box pod" style="left:380px;top:380px;width:100px;">📦 Pod 2</div>
+    <div class="box pod" style="left:520px;top:380px;width:100px;">📦 Pod 3</div>
+    <div class="box pod" style="left:660px;top:380px;width:100px;">📦 Pod 4</div>
+
+    <div class="packet" id="pktLB" style="animation:flyLB 3s ease-in-out infinite;"></div>
+
+    <button class="play-btn" onclick="restart('pktLB','flyLB')">▶ Replay</button>
+  </div>
+
+  <!-- ============ ExternalName ============ -->
+  <div class="scene hidden" id="externalname">
+    <div class="cluster-border" style="left:20px;top:20px;width:580px;height:460px;"></div>
+    <div class="cluster-label" style="left:40px;top:10px;">K8s CLUSTER</div>
+
+    <div class="box pod" style="left:240px;top:380px;width:160px;">📦 App Pod<br><small>gọi: my-db.svc</small></div>
+
+    <div class="box svc" style="left:200px;top:220px;width:240px;background:#db6d28;">⚙ ExternalName Service<br><small>CNAME → db.example.com</small></div>
+
+    <div class="box ext" style="left:680px;top:80px;width:200px;">🗄 db.example.com<br><small>(AWS RDS, ngoài cluster)</small></div>
+
+    <div class="packet" id="pktEXT" style="animation:flyEXT 3s ease-in-out infinite;"></div>
+
+    <button class="play-btn" onclick="restart('pktEXT','flyEXT')">▶ Replay</button>
+  </div>
+
+  <div class="description" id="desc">
+    <b>1️⃣ ClusterIP (mặc định):</b> chỉ truy cập được <b>TRONG cluster</b>. Phù hợp giao tiếp service-to-service nội bộ (frontend → backend, backend → database). Traffic từ Internet KHÔNG thể vào trực tiếp.
+  </div>
+
+<script>
+  const descs = {
+    clusterip: '<b>1️⃣ ClusterIP (mặc định):</b> chỉ truy cập được <b>TRONG cluster</b>. Phù hợp giao tiếp service-to-service nội bộ (frontend → backend, backend → database). Traffic từ Internet KHÔNG thể vào trực tiếp.',
+    nodeport: '<b>2️⃣ NodePort:</b> mở cùng 1 port (mặc định 30000-32767) trên <b>MỌI Node</b>. User truy cập <code>&lt;NodeIP&gt;:&lt;NodePort&gt;</code> → kube-proxy forward đến Service → đến Pod. Phù hợp dev/test, không khuyên dùng production.',
+    loadbalancer: '<b>3️⃣ LoadBalancer:</b> K8s gọi API cloud provider (AWS/GCP/Azure) tự động tạo 1 LB thật với IP public. Traffic đi qua: Cloud LB → Service → Pod. Phù hợp production, nhưng <b>tốn tiền</b> mỗi LB.',
+    externalname: '<b>4️⃣ ExternalName:</b> không tạo Pod/IP, chỉ trả về 1 <b>CNAME DNS record</b> trỏ đến hostname ngoài cluster. Dùng khi DB/API thật nằm ngoài K8s nhưng muốn Pod gọi qua DNS nội bộ ổn định.'
+  };
+
+  function show(id, el) {
+    document.querySelectorAll('.scene').forEach(s => s.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('desc').innerHTML = descs[id];
+  }
+
+  function restart(pktId, animName) {
+    const el = document.getElementById(pktId);
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = animName + ' 3s ease-in-out infinite';
+  }
+</script>
+</body>
+</html>
