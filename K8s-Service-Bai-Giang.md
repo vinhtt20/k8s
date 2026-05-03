@@ -2,7 +2,7 @@
 
 > **Giáo viên:** Chuyên gia Kubernetes
 > **Đối tượng:** Người đã biết khái niệm Pod / Deployment, muốn hiểu sâu Service
-> **Thời lượng đọc:** ~30 phút + tương tác với 6 animation HTML
+> **Thời lượng đọc:** ~45 phút + tương tác với nhiều animation HTML
 
 ---
 
@@ -11,7 +11,7 @@
 Tài liệu gồm 2 phần song song:
 
 1. **File lý thuyết** (chính là file này) — đọc tuần tự từ trên xuống.
-2. **6 file HTML animation** — mở trong trình duyệt khi gặp mục `▶ Mở animation: ...`. Mỗi animation tương tác được, click chạy lại được.
+2. **Các file HTML animation** — mở trong trình duyệt khi gặp mục `▶ Mở animation: ...`. Mỗi animation tương tác được, click chạy lại được.
 
 👉 **Bắt đầu nhanh:** mở [index.html](index.html) — trang mục lục dẫn đến mọi animation.
 
@@ -23,6 +23,10 @@ Tài liệu gồm 2 phần song song:
 | 4 | [04-kube-proxy.html](04-kube-proxy.html) | kube-proxy & iptables |
 | 5 | [05-selector-matching.html](05-selector-matching.html) | Cơ chế selector/label |
 | 6 | [06-headless-vs-clusterip.html](06-headless-vs-clusterip.html) | Headless Service |
+| 7 | [07-packet-journey-deep.html](07-packet-journey-deep.html) | Đường đi thật của packet |
+| 9 | [09-service-types-detailed.html](09-service-types-detailed.html) | 5 loại Service bằng ẩn dụ + kỹ thuật |
+| 10 | [10-service-comparison-animated.html](10-service-comparison-animated.html) | So sánh đường đi của 5 loại Service |
+| 11 | [11-ingress-clusterip-vs-loadbalancer.html](11-ingress-clusterip-vs-loadbalancer.html) | Ingress + ClusterIP vs LoadBalancer |
 
 ---
 
@@ -317,7 +321,182 @@ spec:
 
 ---
 
-## 📌 PHẦN 6: BÀI TẬP THỰC HÀNH
+## 📌 PHẦN 6: INGRESS + CLUSTERIP KHÁC LOADBALANCER NHƯ THẾ NÀO?
+
+> ▶ **Mở animation:** [`11-ingress-clusterip-vs-loadbalancer.html`](11-ingress-clusterip-vs-loadbalancer.html)
+> Bấm từng bước để xem request đi từ Internet vào Ingress Controller, rồi qua ClusterIP Service đến Pod.
+
+### Hãy tưởng tượng Kubernetes là một tòa nhà
+
+- **LoadBalancer trực tiếp** = mỗi phòng mở một cửa riêng ra đường lớn.
+- **Ingress + ClusterIP** = tòa nhà có một sảnh lễ tân chung. Khách đi vào một cửa, lễ tân nhìn biển hiệu rồi dẫn đến đúng phòng.
+
+### Đường đi khi dùng Ingress + ClusterIP
+
+```
+User
+  │ gõ https://shop.example.com/api
+  ▼
+DNS
+  │ trả về IP public của Load Balancer đứng trước Ingress Controller
+  ▼
+Cloud Load Balancer
+  │ nếu dùng HTTPS: TLS handshake / kiểm tra certificate
+  ▼
+Ingress Controller Pod
+  │ đọc Host/Path: shop.example.com + /api
+  ▼
+Ingress Rule
+  │ quyết định chuyển đến api-svc
+  ▼
+ClusterIP Service
+  │ chọn 1 backend Pod khỏe mạnh
+  ▼
+API Pod
+```
+
+Điểm cực kỳ quan trọng:
+
+- **Ingress** chỉ là luật route HTTP/HTTPS.
+- **Ingress Controller** mới là thành phần nhận traffic thật và thực thi luật đó.
+- Backend phía sau Ingress thường là **ClusterIP Service**, vì backend không cần mở public trực tiếp ra Internet.
+
+### Bóc tách cực chi tiết: 13 bước từ Browser đến Pod
+
+Ví dụ người dùng mở:
+
+```text
+https://shop.example.com/api/orders
+```
+
+Hãy tách URL này thành 3 phần:
+
+- `https` = dùng HTTPS, nên sẽ có TLS/SSL.
+- `shop.example.com` = host/domain, dùng cho DNS và Ingress host rule.
+- `/api/orders` = path, dùng cho Ingress path rule.
+
+Quy trình đầy đủ:
+
+| Bước | Chuyện xảy ra | Ai quyết định? |
+|------|---------------|----------------|
+| 1 | Browser nhìn URL và thấy cần kết nối HTTPS tới `shop.example.com`. | Browser |
+| 2 | Browser hỏi DNS: `shop.example.com` là IP nào? | DNS resolver |
+| 3 | DNS trả về A/AAAA record hoặc CNAME tới hostname của Load Balancer. | DNS |
+| 4 | Browser mở TCP connection tới IP public, port `443`. | Browser + network |
+| 5 | Browser gửi TLS ClientHello, kèm **SNI** = `shop.example.com`. | Browser |
+| 6 | Load Balancer hoặc Ingress Controller trả certificate phù hợp. | TLS termination point |
+| 7 | Browser kiểm tra certificate đúng domain, còn hạn, CA tin cậy. | Browser |
+| 8 | Browser gửi HTTP request bên trong HTTPS: `GET /api/orders`, `Host: shop.example.com`. | Browser |
+| 9 | Public Load Balancer chuyển traffic vào target khỏe trong cluster. | Cloud Load Balancer |
+| 10 | Ingress Controller đọc `Host` + `Path`, match Ingress rule. | Ingress Controller |
+| 11 | Controller chuyển request đến `api-svc:80`, tức ClusterIP Service. | Ingress Controller |
+| 12 | kube-proxy/IPVS/iptables chọn một Endpoint Pod, ví dụ `10.1.2.8:8080`. | Kubernetes networking |
+| 13 | API Pod xử lý request và response quay ngược về Browser theo kết nối cũ. | App + network stack |
+
+Ẩn dụ đời thường:
+
+- **DNS** giống hỏi bản đồ: “tòa nhà này nằm ở địa chỉ nào?”.
+- **TCP** giống mở đường dây điện thoại tới tòa nhà.
+- **TLS/SSL** giống kiểm tra căn cước của tòa nhà rồi tạo đường dây riêng không ai nghe lén được.
+- **Load Balancer** giống cửa bảo vệ chọn thang máy/cửa đang hoạt động.
+- **Ingress Controller** giống lễ tân đọc “phòng API” hay “phòng Web”.
+- **Service ClusterIP** giống số máy nội bộ ổn định.
+- **EndpointSlice/Pod** là nhân viên thật đang xử lý công việc.
+
+### DNS hoạt động như thế nào trong luồng này?
+
+DNS là bước đầu tiên để biến tên dễ nhớ thành địa chỉ mạng:
+
+```
+shop.example.com  →  IP public hoặc hostname của Load Balancer
+```
+
+Các record hay gặp:
+
+- **A record**: domain trỏ trực tiếp tới IPv4 public.
+- **AAAA record**: domain trỏ tới IPv6 public.
+- **CNAME record**: domain trỏ tới hostname khác, ví dụ hostname của AWS ALB/GCP Load Balancer.
+- **TTL**: thời gian cache DNS. TTL cao thì client giữ kết quả lâu; TTL thấp thì đổi record nhanh có hiệu lực hơn.
+
+Điểm cần nhớ: **DNS chỉ đưa người dùng tới cửa public**. DNS không biết Pod nào xử lý request, cũng không route `/api` hay `/web`. Việc route theo host/path là việc của **Ingress Controller**.
+
+### Khi có SSL/TLS thì chuyện gì xảy ra?
+
+Với `https://shop.example.com`, sau khi DNS trả IP, trình duyệt mở kết nối tới IP đó và làm **TLS handshake**:
+
+1. Trình duyệt nói domain muốn truy cập, thường qua **SNI**.
+2. Load Balancer hoặc Ingress Controller trả về certificate cho `shop.example.com`.
+3. Trình duyệt kiểm tra certificate có đúng domain, còn hạn, và được CA tin cậy không.
+4. Nếu hợp lệ, hai bên tạo kênh mã hóa HTTPS.
+5. Sau khi HTTPS được giải mã ở điểm **TLS termination**, Ingress Controller mới đọc được HTTP Host/Path để route.
+
+TLS termination có thể đặt ở:
+
+- **Cloud Load Balancer**: LB giải mã HTTPS rồi gửi HTTP/HTTPS vào cluster.
+- **Ingress Controller**: LB chuyển TCP/HTTPS vào cluster, Controller giữ certificate và giải mã.
+- **Trong Pod**: ít phổ biến hơn cho web app thông thường, nhưng có thể dùng nếu app tự quản TLS.
+
+Ví dụ Ingress có TLS:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shop-ingress
+spec:
+  tls:
+    - hosts:
+        - shop.example.com
+      secretName: shop-tls
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-svc
+                port:
+                  number: 80
+```
+
+`shop-tls` là Kubernetes Secret chứa certificate và private key. Trong production, nhiều team dùng **cert-manager** để tự xin và tự gia hạn certificate từ Let's Encrypt hoặc CA nội bộ.
+
+### Đường đi khi dùng Service type LoadBalancer trực tiếp
+
+```
+User
+  │ gọi IP/domain public của Service
+  ▼
+DNS
+  │ trả về IP public/hostname của Load Balancer riêng
+  ▼
+Cloud Load Balancer
+  │ có thể terminate TLS tại đây, tùy cloud/config
+  ▼
+Service type LoadBalancer
+  │ bên dưới vẫn có NodePort + ClusterIP
+  ▼
+Pod
+```
+
+Mô hình này đơn giản: một cửa public đi vào một Service. Nhưng nếu bạn có 10 app public, rất có thể bạn tạo 10 Load Balancer riêng, vừa tốn tiền vừa khó quản lý TLS/domain.
+
+### Khi nào chọn cái nào?
+
+| Tình huống | Nên chọn |
+|------------|----------|
+| Website/API HTTP(S), nhiều path như `/`, `/api`, `/admin` | **Ingress + ClusterIP** |
+| Nhiều service backend chỉ gọi nội bộ | **ClusterIP** |
+| Một app cần public nhanh trên cloud | **LoadBalancer** |
+| Traffic không phải HTTP/HTTPS, ví dụ TCP đặc biệt | **LoadBalancer** hoặc giải pháp L4 riêng |
+
+👉 Câu nhớ nhanh: **Ingress là một cửa thông minh cho nhiều Service; LoadBalancer Service là một cửa riêng cho một Service.**
+
+---
+
+## 📌 PHẦN 7: BÀI TẬP THỰC HÀNH
 
 ### Bài 1: Tạo ClusterIP Service đơn giản
 
@@ -410,6 +589,7 @@ kubectl exec -it <pod> -- netstat -tlnp
    cần IP           ClusterIP  ExternalName
    cố định          NodePort   (kernel space)
                     LoadBalancer
+                    Ingress + ClusterIP
                          │
                   Headless (clusterIP: None)
                   → cho StatefulSet
@@ -422,6 +602,7 @@ kubectl exec -it <pod> -- netstat -tlnp
 | **LoadBalancer** | Public IP | Production trên cloud |
 | **ExternalName** | DNS CNAME | Trỏ ra DB ngoài |
 | **Headless** | DNS trả nhiều IP | StatefulSet |
+| **Ingress + ClusterIP** | Public HTTP(S) qua một cửa chung | Route nhiều app theo host/path |
 
 ---
 
@@ -457,7 +638,12 @@ Sau khi nắm chắc Service, hãy học:
 ├── 03-service-types.html               ← Animation: 4 loại Service
 ├── 04-kube-proxy.html                  ← Animation: kube-proxy/iptables
 ├── 05-selector-matching.html           ← Animation: selector
-└── 06-headless-vs-clusterip.html       ← Animation: Headless
+├── 06-headless-vs-clusterip.html       ← Animation: Headless
+├── 07-packet-journey-deep.html         ← Animation: packet deep-dive
+├── 08-K8s-Networking-Deep-Dive.md      ← Lý thuyết deep-dive
+├── 09-service-types-detailed.html      ← Bài giảng ẩn dụ + kỹ thuật
+├── 10-service-comparison-animated.html ← So sánh đường đi mạng
+└── 11-ingress-clusterip-vs-loadbalancer.html ← Ingress vs LoadBalancer
 ```
 
 > 💡 **Mở [index.html](index.html) trong trình duyệt** để bắt đầu trải nghiệm tương tác.
